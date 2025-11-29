@@ -83,45 +83,63 @@ class TrackSplitter:
         rms_db = librosa.power_to_db(rms**2, ref=np.max)
         
         # Finde Silence-Bereiche
-        print(f"Suche Silence-Bereiche (Schwelle: {self.silence_threshold} dB)...")
+        print(f"Suche Silence-Bereiche (Schwelle: {self.silence_threshold} dB, min. Dauer: {self.min_silence_duration}s)...")
         silence_mask = rms_db < self.silence_threshold
         
-        # Finde längere Silence-Perioden
-        silence_frames = librosa.frames_to_time(
-            np.where(silence_mask)[0],
-            sr=sr,
-            hop_length=hop_length
-        )
-        
-        # Gruppiere nahe Silence-Bereiche
-        print("Analysiere Silence-Perioden...")
+        # Finde kontinuierliche Silence-Perioden
+        print("Analysiere kontinuierliche Silence-Perioden...")
         split_points = [0.0]
         
-        if len(silence_frames) == 0:
+        # Finde Start- und Endpunkte von kontinuierlichen Silence-Bereichen
+        silence_indices = np.where(silence_mask)[0]
+        
+        if len(silence_indices) == 0:
             print("Keine Silence-Bereiche gefunden - erstelle einen einzigen Track")
             # Verwende duration aus SoundFile
             with sf.SoundFile(str(audio_path)) as f:
                 total_duration = f.frames / f.samplerate
             split_points.append(total_duration)
         else:
-            last_silence_start = silence_frames[0]
+            # Finde kontinuierliche Bereiche (wo aufeinanderfolgende Indizes zusammen gehören)
+            silence_regions = []
+            region_start = silence_indices[0]
             
-            for i, silence_time in enumerate(silence_frames):
-                if i == 0:
-                    last_silence_start = silence_time
-                    continue
+            for i in range(1, len(silence_indices)):
+                # Wenn Lücke zwischen Indizes zu groß ist (> 1 Frame), ist es ein neuer Bereich
+                if silence_indices[i] - silence_indices[i-1] > 1:
+                    # Ende des vorherigen Bereichs
+                    region_end = silence_indices[i-1]
+                    silence_regions.append((region_start, region_end))
+                    # Start eines neuen Bereichs
+                    region_start = silence_indices[i]
+            
+            # Füge den letzten Bereich hinzu
+            silence_regions.append((region_start, silence_indices[-1]))
+            
+            print(f"Gefunden: {len(silence_regions)} kontinuierliche Silence-Bereiche")
+            
+            # Konvertiere Frame-Indizes zu Zeitpunkten
+            frame_times = librosa.frames_to_time(
+                np.arange(len(silence_mask)),
+                sr=sr,
+                hop_length=hop_length
+            )
+            
+            # Prüfe jeden Silence-Bereich auf Mindestdauer
+            for region_start_idx, region_end_idx in silence_regions:
+                start_time = frame_times[region_start_idx]
+                end_time = frame_times[region_end_idx]
+                duration = end_time - start_time
                 
-                # Wenn Pause lang genug ist
-                if silence_time - last_silence_start >= self.min_silence_duration:
-                    # Split-Punkt in der Mitte der Pause
-                    split_point = (last_silence_start + silence_time) / 2
+                # Nur wenn Stille lang genug ist
+                if duration >= self.min_silence_duration:
+                    # Split-Punkt in der Mitte der Stille
+                    split_point = (start_time + end_time) / 2
                     
                     # Prüfe ob Track lang genug ist
                     if split_point - split_points[-1] >= self.min_track_duration:
                         split_points.append(split_point)
-                        print(f"  Split-Punkt bei {split_point:.2f}s")
-                    
-                    last_silence_start = silence_time
+                        print(f"  Split-Punkt bei {split_point:.2f}s (Stille: {duration:.2f}s von {start_time:.2f}s bis {end_time:.2f}s)")
             
             # Verwende duration aus SoundFile
             with sf.SoundFile(str(audio_path)) as f:

@@ -73,3 +73,4 @@ class RecordingState:
         """Hole Dateiname der aktuellen Aufnahme"""
         return self.state.get("filename")
 
+
