@@ -59,14 +59,24 @@ async def serve_app_js():
         raise FileNotFoundError(f"app.js nicht gefunden: {js_path}")
     
     try:
-        content = js_path.read_text(encoding='utf-8')
-        print(f"✓ Serviere app.js ({len(content)} Zeichen)")
-        return Response(
-            content=content,
+        # Lese Datei als Bytes, dann als UTF-8
+        content_bytes = js_path.read_bytes()
+        content = content_bytes.decode('utf-8')
+        
+        # Prüfe dass die Datei korrekt beginnt
+        if not content.startswith('//'):
+            print(f"⚠️  WARNUNG: app.js beginnt nicht mit Kommentar! Beginnt mit: {repr(content[:50])}")
+        
+        print(f"✓ Serviere app.js ({len(content)} Zeichen, {len(content_bytes)} Bytes)")
+        
+        # Verwende FileResponse für bessere Performance
+        return FileResponse(
+            str(js_path),
             media_type="application/javascript; charset=utf-8",
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
-                "X-Content-Type-Options": "nosniff"
+                "X-Content-Type-Options": "nosniff",
+                "Content-Length": str(len(content_bytes))
             }
         )
     except Exception as e:
