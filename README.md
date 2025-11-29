@@ -26,19 +26,27 @@ Professionelle Schallplatten-Digitalisierungs-Software mit Webinterface für Ras
 git clone https://github.com/rototom/vinyl.git
 cd vinyl
 
+# System-Abhängigkeiten installieren (Raspberry Pi)
+sudo apt-get update
+sudo apt-get install python3-venv python3-pip portaudio19-dev python3-pyaudio libsndfile1 libsndfile1-dev libsamplerate0-dev
+
+# Virtuelle Umgebung erstellen und aktivieren
+python3 -m venv venv
+source venv/bin/activate
+
 # Python-Abhängigkeiten installieren
 cd backend
-pip3 install -r requirements.txt
-
-# PyAudio System-Abhängigkeiten (Raspberry Pi)
-sudo apt-get update
-sudo apt-get install portaudio19-dev python3-pyaudio libsndfile1
-
-# Für librosa zusätzliche Abhängigkeiten
-sudo apt-get install libsndfile1-dev libsamplerate0-dev
+pip install -r requirements.txt
 
 # Server starten
-python3 main.py
+python main.py
+```
+
+**Hinweis:** Bei jedem Start muss die virtuelle Umgebung aktiviert werden:
+```bash
+source venv/bin/activate
+cd backend
+python main.py
 ```
 
 ## Verwendung
@@ -64,7 +72,20 @@ vinyl/
 │   ├── index.html
 │   ├── app.js
 │   └── styles.css
-└── recordings/       # Aufgenommene Dateien
+├── recordings/       # Aufgenommene Dateien
+├── venv/            # Virtuelle Umgebung (wird erstellt)
+├── setup.sh         # Setup-Script
+└── start.sh         # Start-Script
+```
+
+## Schnellstart
+
+```bash
+# Setup einmalig ausführen
+./setup.sh
+
+# Server starten
+./start.sh
 ```
 
 ## API Endpunkte
