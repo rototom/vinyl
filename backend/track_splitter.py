@@ -25,23 +25,28 @@ class TrackSplitter:
             # Verwende sr=None um native Sample-Rate zu behalten
             print("Lade Audio-Datei...")
             y, sr = librosa.load(str(audio_path), sr=None, mono=False)
-            print(f"Audio geladen: {len(y)} Samples, {sr} Hz")
+            print(f"Audio geladen: {y.shape} Shape, {sr} Hz")
             
-            # Konvertiere zu Mono falls Stereo
-            if len(y.shape) > 1:
-                print("Konvertiere Stereo zu Mono...")
-                y = librosa.to_mono(y)
+            # Behalte Stereo-Information für Ausgabe
+            is_stereo = len(y.shape) > 1 and y.shape[0] == 2
+            
+            # Für Silence-Erkennung: Konvertiere zu Mono (nur für Analyse)
+            if is_stereo:
+                print("Konvertiere Stereo zu Mono für Silence-Erkennung...")
+                y_mono = librosa.to_mono(y)
+            else:
+                y_mono = y
         except Exception as e:
             print(f"Fehler beim Laden der Audio-Datei: {e}")
             import traceback
             traceback.print_exc()
             raise Exception(f"Fehler beim Laden der Audio-Datei: {e}")
         
-        # Berechne RMS Energy
+        # Berechne RMS Energy (mit Mono für bessere Silence-Erkennung)
         print("Berechne RMS Energy...")
         frame_length = 2048
         hop_length = 512
-        rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
+        rms = librosa.feature.rms(y=y_mono, frame_length=frame_length, hop_length=hop_length)[0]
         
         # Konvertiere zu dB
         print("Konvertiere zu dB...")
@@ -64,7 +69,9 @@ class TrackSplitter:
         
         if len(silence_frames) == 0:
             print("Keine Silence-Bereiche gefunden - erstelle einen einzigen Track")
-            split_points.append(len(y) / sr)
+            # Bei Stereo: y.shape[1] ist die Anzahl der Samples
+            total_duration = y.shape[1] / sr if is_stereo else len(y) / sr
+            split_points.append(total_duration)
         else:
             last_silence_start = silence_frames[0]
             
@@ -85,7 +92,9 @@ class TrackSplitter:
                     
                     last_silence_start = silence_time
             
-            split_points.append(len(y) / sr)  # Ende
+            # Bei Stereo: y.shape[1] ist die Anzahl der Samples
+            total_duration = y.shape[1] / sr if is_stereo else len(y) / sr
+            split_points.append(total_duration)  # Ende
         
         print(f"Gefundene Split-Punkte: {len(split_points)} -> {len(split_points)-1} Tracks")
         
@@ -103,14 +112,23 @@ class TrackSplitter:
             
             print(f"  Track {i+1}: {start_time:.2f}s - {end_time:.2f}s ({end_time-start_time:.2f}s)")
             
-            track_audio = y[start_sample:end_sample]
+            # Verwende Stereo-Daten falls vorhanden, sonst Mono
+            if is_stereo:
+                track_audio = y[:, start_sample:end_sample].T  # Transponiere für soundfile Format (samples x channels)
+            else:
+                track_audio = y[start_sample:end_sample]
             
             track_filename = f"{base_name}_track_{i+1:02d}.flac"
             track_path = output_dir / track_filename
             
             try:
-                sf.write(str(track_path), track_audio, sr, format='FLAC')
-                print(f"    Gespeichert: {track_filename}")
+                # Speichere mit korrekter Kanalanzahl
+                if is_stereo:
+                    sf.write(str(track_path), track_audio, sr, format='FLAC', subtype='PCM_24')
+                    print(f"    Gespeichert: {track_filename} (Stereo)")
+                else:
+                    sf.write(str(track_path), track_audio, sr, format='FLAC', subtype='PCM_24')
+                    print(f"    Gespeichert: {track_filename} (Mono)")
             except Exception as e:
                 print(f"    Fehler beim Speichern von {track_filename}: {e}")
                 raise
