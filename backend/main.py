@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import uvicorn
@@ -51,14 +51,13 @@ except Exception as e:
     print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {e}")
 
 # Explizite Routen für statische Dateien - MÜSSEN VOR DER ROOT-ROUTE KOMMEN!
-@app.get("/app.js", response_class=Response)
+@app.get("/app.js")
 async def serve_app_js():
     """Serviere JavaScript-Datei"""
     js_path = FRONTEND_DIR / "app.js"
     if not js_path.exists():
         raise FileNotFoundError(f"app.js nicht gefunden: {js_path}")
     
-    from fastapi.responses import Response
     try:
         content = js_path.read_text(encoding='utf-8')
         print(f"✓ Serviere app.js ({len(content)} Zeichen)")
