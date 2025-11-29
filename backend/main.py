@@ -41,11 +41,27 @@ config = Config(CONFIG_DIR / "settings.json")
 # Frontend statisch servieren
 try:
     if FRONTEND_DIR.exists():
-        app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")
+        # Serviere statische Dateien (app.js, styles.css) direkt
+        app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
     else:
         print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {FRONTEND_DIR}")
 except Exception as e:
     print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {e}")
+
+# Explizite Routen für statische Dateien
+@app.get("/app.js")
+async def serve_app_js():
+    js_path = FRONTEND_DIR / "app.js"
+    if js_path.exists():
+        return FileResponse(str(js_path), media_type="application/javascript")
+    raise FileNotFoundError("app.js nicht gefunden")
+
+@app.get("/styles.css")
+async def serve_styles_css():
+    css_path = FRONTEND_DIR / "styles.css"
+    if css_path.exists():
+        return FileResponse(str(css_path), media_type="text/css")
+    raise FileNotFoundError("styles.css nicht gefunden")
 
 # Globale Instanzen - mit Fehlerbehandlung
 try:
