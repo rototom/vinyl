@@ -247,7 +247,7 @@ function displayRecordings() {
                     <p class="text-white font-semibold text-lg">${rec.filename}</p>
                     <p class="text-gray-400 text-sm mt-1">${sizeMB} MB • ${date}</p>
                 </div>
-                <button onclick="deleteRecording('${rec.filename}')" 
+                <button onclick="deleteRecording(${JSON.stringify(rec.filename)})" 
                         class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg ml-2 transition-all">
                     🗑️ Löschen
                 </button>
@@ -396,7 +396,7 @@ function displayTracks(tracks) {
                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap transition-all">
                     ⬇ Download
                 </a>
-                <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(trackTitle)})" 
+                <button onclick="deleteTrack(${JSON.stringify(track.filename)}, ${JSON.stringify(trackTitle)})" 
                         class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all">
                     🗑️ Löschen
                 </button>
@@ -453,7 +453,7 @@ function displayAlbums() {
                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-all">
                             ⬇ Album herunterladen
                         </a>
-                        <button onclick="deleteAlbum('${album.tracks[0].filename}', ${JSON.stringify(album.album)}, ${JSON.stringify(album.artist)})" 
+                        <button onclick="deleteAlbum(${JSON.stringify(album.tracks[0].filename)}, ${JSON.stringify(album.album)}, ${JSON.stringify(album.artist)})" 
                                 class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-all">
                             🗑️ Album löschen
                         </button>
@@ -475,7 +475,7 @@ function displayAlbums() {
                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm transition-all">
                                 ⬇
                             </a>
-                            <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(track.title)})" 
+                            <button onclick="deleteTrack(${JSON.stringify(track.filename)}, ${JSON.stringify(track.title)})" 
                                     class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm transition-all">
                                 🗑️
                             </button>
