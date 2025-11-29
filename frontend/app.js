@@ -151,34 +151,59 @@ document.getElementById('splitBtn').addEventListener('click', async () => {
         return;
     }
     
+    const splitBtn = document.getElementById('splitBtn');
+    const originalText = splitBtn.textContent;
+    
     try {
         const formData = new FormData();
         formData.append('filename', filename);
         
-        document.getElementById('splitBtn').disabled = true;
-        document.getElementById('splitBtn').textContent = '⏳ Verarbeitung...';
+        splitBtn.disabled = true;
+        splitBtn.textContent = '⏳ Verarbeitung... (dies kann bei großen Dateien einige Minuten dauern)';
+        
+        // Erstelle AbortController für Timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 Minuten Timeout
         
         const response = await fetch(`${API_BASE}/split-tracks`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unbekannter Fehler' }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
         
         const data = await response.json();
         
-        if (response.ok) {
+        if (data.tracks && data.tracks.length > 0) {
             displayTracks(data.tracks);
             updateTrackSelect(data.tracks);
             document.getElementById('tagSection').classList.remove('hidden');
-            document.getElementById('splitBtn').textContent = '🔪 Tracks automatisch splitten';
+            splitBtn.textContent = `✅ ${data.tracks.length} Tracks erstellt`;
         } else {
-            alert('Fehler: ' + data.error);
-            document.getElementById('splitBtn').textContent = '🔪 Tracks automatisch splitten';
+            throw new Error('Keine Tracks erstellt');
         }
-        document.getElementById('splitBtn').disabled = false;
+        
     } catch (error) {
-        alert('Fehler beim Splitting: ' + error.message);
-        document.getElementById('splitBtn').disabled = false;
-        document.getElementById('splitBtn').textContent = '🔪 Tracks automatisch splitten';
+        if (error.name === 'AbortError') {
+            alert('Verarbeitung dauerte zu lange (Timeout nach 10 Minuten). Bitte versuchen Sie es mit einer kleineren Datei oder kontaktieren Sie den Support.');
+        } else {
+            alert('Fehler beim Splitting: ' + error.message);
+        }
+        splitBtn.textContent = originalText;
+    } finally {
+        splitBtn.disabled = false;
+        // Setze Text nach 3 Sekunden zurück
+        setTimeout(() => {
+            if (splitBtn.textContent.includes('✅')) {
+                splitBtn.textContent = originalText;
+            }
+        }, 3000);
     }
 });
 
