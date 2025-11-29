@@ -395,7 +395,7 @@ function displayTracks(tracks) {
                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap transition-all">
                     ⬇ Download
                 </a>
-                <button onclick="deleteTrack('${track.filename}', 'Track ${track.track_number}')" 
+                <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(`Track ${track.track_number}`)})" 
                         class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all">
                     🗑️ Löschen
                 </button>
