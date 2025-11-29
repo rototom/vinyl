@@ -63,6 +63,12 @@ async def serve_styles_css():
         return FileResponse(str(css_path), media_type="text/css")
     raise FileNotFoundError("styles.css nicht gefunden")
 
+@app.get("/favicon.ico")
+async def serve_favicon():
+    # Einfach 204 No Content zurückgeben, da kein Favicon vorhanden
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
 # Globale Instanzen - mit Fehlerbehandlung
 try:
     device_index = config.get("audio.device_index")
