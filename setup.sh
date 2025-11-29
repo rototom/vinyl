@@ -33,9 +33,9 @@ echo ""
 echo "🔧 Aktiviere virtuelle Umgebung..."
 source venv/bin/activate
 
-# Upgrade pip
-echo "⬆️  Aktualisiere pip..."
-pip install --upgrade pip
+# Upgrade pip, setuptools und wheel
+echo "⬆️  Aktualisiere pip, setuptools und wheel..."
+pip install --upgrade pip setuptools wheel
 
 echo ""
 
