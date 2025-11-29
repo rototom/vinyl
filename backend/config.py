@@ -10,6 +10,7 @@ class Config:
             "audio": {
                 "device_index": None,  # None = Standard-Gerät
                 "device_name": None,
+                "alsa_device": "hw:1,0",  # ALSA-Gerät (z.B. hw:1,0)
                 "sample_rate": 44100,
                 "channels": 2,
                 "chunk_size": 4096

@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from audio_recorder import AudioRecorder
+from alsa_recorder import ALSARecorder
 from track_splitter import TrackSplitter
 from tagger import AudioTagger
 from config import Config
@@ -70,20 +71,51 @@ async def serve_favicon():
     return Response(status_code=204)
 
 # Globale Instanzen - mit Fehlerbehandlung
+recorder = None
+use_alsa = False
+
 try:
     device_index = config.get("audio.device_index")
     sample_rate = config.get("audio.sample_rate", 44100)
     channels = config.get("audio.channels", 2)
     chunk_size = config.get("audio.chunk_size", 4096)
-    recorder = AudioRecorder(
+    
+    # Versuche PyAudio-Recorder
+    pyrecorder = AudioRecorder(
         device_index=device_index,
         sample_rate=sample_rate,
         channels=channels,
         chunk=chunk_size
     )
+    
+    # Prüfe ob Input-Geräte verfügbar sind
+    devices = pyrecorder.get_audio_devices()
+    if devices and len(devices) > 0:
+        recorder = pyrecorder
+        print("✓ PyAudio-Recorder initialisiert")
+    else:
+        print("⚠️  PyAudio findet keine Input-Geräte, verwende ALSA-Recorder")
+        use_alsa = True
+        
 except Exception as e:
     print(f"Warnung: AudioRecorder konnte nicht initialisiert werden: {e}")
-    recorder = None
+    use_alsa = True
+
+# Falls PyAudio nicht funktioniert, verwende ALSA
+if use_alsa or recorder is None:
+    try:
+        alsa_device = config.get("audio.alsa_device", "hw:1,0")
+        sample_rate = config.get("audio.sample_rate", 44100)
+        channels = config.get("audio.channels", 2)
+        recorder = ALSARecorder(
+            alsa_device=alsa_device,
+            sample_rate=sample_rate,
+            channels=channels
+        )
+        print(f"✓ ALSA-Recorder initialisiert mit Gerät: {alsa_device}")
+    except Exception as e:
+        print(f"Fehler: ALSA-Recorder konnte nicht initialisiert werden: {e}")
+        recorder = None
 
 # TrackSplitter mit Konfiguration initialisieren
 splitter = TrackSplitter()
@@ -107,20 +139,35 @@ async def get_status():
             "recording": False,
             "devices": [],
             "alsa_devices": [],
+            "use_alsa": False,
             "error": "AudioRecorder nicht verfügbar"
         }
     
-    # PyAudio-Geräte
-    pyaudio_devices = recorder.get_audio_devices()
+    # Prüfe ob ALSA-Recorder verwendet wird
+    is_alsa = isinstance(recorder, ALSARecorder)
+    
+    # PyAudio-Geräte (nur wenn PyAudio-Recorder)
+    pyaudio_devices = []
+    if not is_alsa:
+        pyaudio_devices = recorder.get_audio_devices()
     
     # ALSA-Geräte
     alsa_devices = Config.get_alsa_devices()
+    if is_alsa:
+        alsa_devices = recorder.get_alsa_devices()
+    
+    current_device = None
+    if is_alsa:
+        current_device = recorder.alsa_device
+    else:
+        current_device = recorder.device_index
     
     return {
         "recording": recorder.is_recording(),
         "devices": pyaudio_devices,
         "alsa_devices": alsa_devices,
-        "current_device_index": recorder.device_index
+        "use_alsa": is_alsa,
+        "current_device": current_device
     }
 
 @app.post("/api/start-recording")
@@ -254,6 +301,7 @@ from typing import Optional
 async def update_settings(
     audio_device_index: Optional[int] = Form(None),
     audio_device_name: Optional[str] = Form(None),
+    audio_alsa_device: Optional[str] = Form(None),
     audio_sample_rate: Optional[int] = Form(None),
     audio_channels: Optional[int] = Form(None),
     naming_pattern: Optional[str] = Form(None),
@@ -269,6 +317,8 @@ async def update_settings(
             config.set("audio.device_index", audio_device_index if audio_device_index >= 0 else None)
         if audio_device_name is not None:
             config.set("audio.device_name", audio_device_name)
+        if audio_alsa_device is not None:
+            config.set("audio.alsa_device", audio_alsa_device)
         if audio_sample_rate is not None:
             config.set("audio.sample_rate", audio_sample_rate)
         if audio_channels is not None:
@@ -289,22 +339,30 @@ async def update_settings(
             config.set("recording.min_track_duration", recording_min_track_duration)
         
         # AudioRecorder neu initialisieren wenn Gerät geändert wurde
-        if audio_device_index is not None and recorder is not None:
-            if not recorder.is_recording():
-                try:
-                    device_index = audio_device_index if audio_device_index >= 0 else None
-                    sample_rate = config.get("audio.sample_rate", 44100)
-                    channels = config.get("audio.channels", 2)
-                    chunk_size = config.get("audio.chunk_size", 4096)
-                    recorder.set_device(device_index)
+        if recorder is not None and not recorder.is_recording():
+            try:
+                sample_rate = config.get("audio.sample_rate", 44100)
+                channels = config.get("audio.channels", 2)
+                
+                if isinstance(recorder, ALSARecorder):
+                    # ALSA-Recorder
+                    if audio_alsa_device is not None:
+                        recorder.set_device(audio_alsa_device)
                     recorder.sample_rate = sample_rate
                     recorder.channels = channels
-                    recorder.chunk = chunk_size
-                except Exception as e:
-                    return JSONResponse(
-                        {"error": f"Fehler beim Ändern des Geräts: {e}"},
-                        status_code=500
-                    )
+                else:
+                    # PyAudio-Recorder
+                    if audio_device_index is not None:
+                        device_index = audio_device_index if audio_device_index >= 0 else None
+                        recorder.set_device(device_index)
+                    recorder.sample_rate = sample_rate
+                    recorder.channels = channels
+                    recorder.chunk = config.get("audio.chunk_size", 4096)
+            except Exception as e:
+                return JSONResponse(
+                    {"error": f"Fehler beim Ändern des Geräts: {e}"},
+                    status_code=500
+                )
         
         # TrackSplitter-Einstellungen aktualisieren
         splitter.silence_threshold = config.get("recording.silence_threshold_db", -40)
