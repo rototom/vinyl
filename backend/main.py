@@ -764,10 +764,31 @@ async def download_album(base_filename: str):
 @app.delete("/api/delete/{filename}")
 async def delete_recording(filename: str):
     """Lösche eine Aufnahme oder einen Track"""
-    filepath = RECORDINGS_DIR / filename
+    from urllib.parse import unquote
+    # Decodiere URL-encoded Dateinamen
+    decoded_filename = unquote(filename)
+    filepath = RECORDINGS_DIR / decoded_filename
+    
+    # Sicherheitsprüfung: Stelle sicher dass der Pfad innerhalb des Recordings-Verzeichnisses bleibt
+    try:
+        filepath.resolve().relative_to(RECORDINGS_DIR.resolve())
+    except ValueError:
+        return JSONResponse(
+            {"error": "Ungültiger Dateiname"}, 
+            status_code=400
+        )
+    
     if filepath.exists():
-        filepath.unlink()
-        return {"status": "deleted", "filename": filename}
+        try:
+            filepath.unlink()
+            print(f"✓ Datei gelöscht: {decoded_filename}")
+            return {"status": "deleted", "filename": decoded_filename}
+        except Exception as e:
+            print(f"Fehler beim Löschen von {decoded_filename}: {e}")
+            return JSONResponse(
+                {"error": f"Fehler beim Löschen: {e}"}, 
+                status_code=500
+            )
     return JSONResponse(
         {"error": "Datei nicht gefunden"}, 
         status_code=404
@@ -776,8 +797,11 @@ async def delete_recording(filename: str):
 @app.delete("/api/delete-album/{base_filename}")
 async def delete_album(base_filename: str):
     """Lösche ein komplettes Album (alle Tracks, Cover und Original-Aufnahme)"""
+    from urllib.parse import unquote
+    # Decodiere URL-encoded Dateinamen
+    decoded_filename = unquote(base_filename)
     # Extrahiere Basis-Namen (ohne _track_XX)
-    base_name = Path(base_filename).stem
+    base_name = Path(decoded_filename).stem
     if "_track_" in base_name:
         base_name = base_name.split("_track_")[0]
     

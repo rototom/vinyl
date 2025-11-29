@@ -754,14 +754,16 @@ async function selectAlbum(mbid, albumTitle, trackCount) {
     }
 }
 
-// Aufnahme löschen
-async function deleteRecording(filename) {
+// Aufnahme löschen - muss global verfügbar sein für onclick
+window.deleteRecording = async function(filename) {
     if (!confirmAction(`Möchten Sie "${filename}" wirklich löschen?`)) {
         return;
     }
     
     try {
-        const response = await fetch(`${API_BASE}/delete/${filename}`, {
+        // URL-encode den Dateinamen für sichere Übertragung
+        const encodedFilename = encodeURIComponent(filename);
+        const response = await fetch(`${API_BASE}/delete/${encodedFilename}`, {
             method: 'DELETE'
         });
         
@@ -773,18 +775,21 @@ async function deleteRecording(filename) {
             alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
         }
     } catch (error) {
+        console.error('Fehler beim Löschen:', error);
         alert('Fehler: ' + error.message);
     }
-}
+};
 
-// Track löschen
-async function deleteTrack(filename, trackTitle) {
+// Track löschen - muss global verfügbar sein für onclick
+window.deleteTrack = async function(filename, trackTitle) {
     if (!confirmAction(`Möchten Sie "${trackTitle}" (${filename}) wirklich löschen?`)) {
         return;
     }
     
     try {
-        const response = await fetch(`${API_BASE}/delete/${filename}`, {
+        // URL-encode den Dateinamen für sichere Übertragung
+        const encodedFilename = encodeURIComponent(filename);
+        const response = await fetch(`${API_BASE}/delete/${encodedFilename}`, {
             method: 'DELETE'
         });
         
@@ -797,19 +802,22 @@ async function deleteTrack(filename, trackTitle) {
             alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
         }
     } catch (error) {
+        console.error('Fehler beim Löschen:', error);
         alert('Fehler: ' + error.message);
     }
-}
+};
 
-// Album löschen
-async function deleteAlbum(baseFilename, albumTitle, artist) {
+// Album löschen - muss global verfügbar sein für onclick
+window.deleteAlbum = async function(baseFilename, albumTitle, artist) {
     const albumName = `${artist} - ${albumTitle}`;
     if (!confirmAction(`Möchten Sie das komplette Album "${albumName}" wirklich löschen?\n\nDies löscht alle Tracks, das Cover und die Original-Aufnahme.`)) {
         return;
     }
     
     try {
-        const response = await fetch(`${API_BASE}/delete-album/${baseFilename}`, {
+        // URL-encode den Dateinamen für sichere Übertragung
+        const encodedFilename = encodeURIComponent(baseFilename);
+        const response = await fetch(`${API_BASE}/delete-album/${encodedFilename}`, {
             method: 'DELETE'
         });
         
@@ -823,9 +831,10 @@ async function deleteAlbum(baseFilename, albumTitle, artist) {
             alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
         }
     } catch (error) {
+        console.error('Fehler beim Löschen:', error);
         alert('Fehler: ' + error.message);
     }
-}
+};
 
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
