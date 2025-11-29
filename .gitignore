@@ -17,6 +17,10 @@ recordings/*.flac
 recordings/*.wav
 !recordings/.gitkeep
 
+# Config
+config/*.json
+!config/.gitkeep
+
 # IDE
 .vscode/
 .idea/
