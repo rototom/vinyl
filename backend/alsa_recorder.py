@@ -113,11 +113,24 @@ class ALSARecorder:
             ]
             
             print(f"Starte Aufnahme: {' '.join(cmd)}")
+            print(f"Ziel-Datei: {temp_wav}")
+            
+            # Öffne stderr für Fehlerausgabe
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
+                bufsize=0  # Unbuffered
             )
+            
+            # Prüfe kurz ob Prozess gestartet wurde
+            time.sleep(0.1)
+            if self.process.poll() is not None:
+                # Prozess ist bereits beendet - Fehler!
+                stderr_output = self.process.stderr.read().decode('utf-8', errors='ignore')
+                raise Exception(f"arecord-Prozess startete nicht. Fehler: {stderr_output}")
+            
+            print(f"arecord-Prozess läuft (PID: {self.process.pid})")
             
             # Starte Level-Monitoring
             self._level_thread = threading.Thread(target=self._monitor_level, args=(temp_wav,), daemon=True)
@@ -138,18 +151,59 @@ class ALSARecorder:
         
         # Stoppe arecord-Prozess
         if self.process:
+            # Sende SIGTERM um arecord sauber zu beenden
             self.process.terminate()
             try:
-                self.process.wait(timeout=2)
+                # Warte bis zu 3 Sekunden auf Beendigung
+                self.process.wait(timeout=3)
+                print(f"arecord-Prozess beendet (Returncode: {self.process.returncode})")
             except subprocess.TimeoutExpired:
+                print("arecord-Prozess reagiert nicht, erzwinge Beendigung...")
                 self.process.kill()
                 self.process.wait()
+            
+            # Prüfe stderr für Fehler
+            if self.process.stderr:
+                stderr_output = self.process.stderr.read().decode('utf-8', errors='ignore')
+                if stderr_output:
+                    print(f"arecord stderr: {stderr_output}")
         
-        # Warte kurz, damit Datei geschrieben wird
-        time.sleep(0.5)
+        # Warte länger, damit Datei vollständig geschrieben wird
+        max_wait = 5
+        waited = 0
+        while waited < max_wait:
+            if self.output_path.exists() and self.output_path.stat().st_size > 0:
+                print(f"Aufnahmedatei gefunden: {self.output_path} ({self.output_path.stat().st_size} Bytes)")
+                break
+            time.sleep(0.5)
+            waited += 0.5
         
         if not self.output_path.exists():
-            raise Exception("Aufnahmedatei wurde nicht erstellt")
+            # Prüfe ob Datei an anderem Ort erstellt wurde
+            possible_paths = [
+                self.output_path.parent / self.filename,
+                Path(self.filename),
+                Path.cwd() / self.filename
+            ]
+            
+            found = False
+            for path in possible_paths:
+                if path.exists():
+                    print(f"Aufnahmedatei an unerwartetem Ort gefunden: {path}")
+                    self.output_path = path
+                    found = True
+                    break
+            
+            if not found:
+                raise Exception(
+                    f"Aufnahmedatei wurde nicht erstellt. Erwarteter Pfad: {self.output_path}\n"
+                    f"arecord Returncode: {self.process.returncode if self.process else 'N/A'}"
+                )
+        
+        # Prüfe ob Datei groß genug ist (mindestens Header-Größe)
+        file_size = self.output_path.stat().st_size
+        if file_size < 44:  # WAV-Header ist mindestens 44 Bytes
+            raise Exception(f"Aufnahmedatei ist zu klein ({file_size} Bytes) - möglicherweise leer")
         
         # Konvertiere zu FLAC
         flac_filename = self.output_path.stem + ".flac"
@@ -157,8 +211,11 @@ class ALSARecorder:
         
         try:
             # Lese WAV und schreibe als FLAC
+            print(f"Konvertiere {self.output_path} zu FLAC...")
             data, sr = sf.read(str(self.output_path))
+            print(f"Audio-Daten geladen: {len(data)} Samples, {sr} Hz, {data.shape}")
             sf.write(str(flac_path), data, sr, format='FLAC')
+            print(f"FLAC-Datei erstellt: {flac_path}")
             
             # Lösche temporäres WAV
             self.output_path.unlink()
@@ -166,6 +223,8 @@ class ALSARecorder:
             return flac_filename
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             raise Exception(f"Fehler beim Konvertieren zu FLAC: {e}")
     
     def is_recording(self):
