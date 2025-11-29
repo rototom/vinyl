@@ -50,8 +50,8 @@ try:
 except Exception as e:
     print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {e}")
 
-# Explizite Routen für statische Dateien
-@app.get("/app.js")
+# Explizite Routen für statische Dateien - MÜSSEN VOR DER ROOT-ROUTE KOMMEN!
+@app.get("/app.js", response_class=Response)
 async def serve_app_js():
     """Serviere JavaScript-Datei"""
     js_path = FRONTEND_DIR / "app.js"
@@ -61,15 +61,19 @@ async def serve_app_js():
     from fastapi.responses import Response
     try:
         content = js_path.read_text(encoding='utf-8')
+        print(f"✓ Serviere app.js ({len(content)} Zeichen)")
         return Response(
             content=content,
             media_type="application/javascript; charset=utf-8",
             headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate"
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Content-Type-Options": "nosniff"
             }
         )
     except Exception as e:
         print(f"Fehler beim Lesen von app.js: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 @app.get("/styles.css")
