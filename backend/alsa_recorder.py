@@ -55,6 +55,56 @@ class ALSARecorder:
         
         return devices
     
+    def _kill_existing_arecord_processes(self):
+        """Beende laufende arecord-Prozesse die das Gerät blockieren"""
+        try:
+            # Finde alle arecord-Prozesse
+            result = subprocess.run(
+                ['pgrep', '-f', 'arecord'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid.strip():
+                        try:
+                            pid_int = int(pid.strip())
+                            print(f"Beende arecord-Prozess PID {pid_int}...")
+                            subprocess.run(['kill', '-TERM', str(pid_int)], timeout=1)
+                            time.sleep(0.2)
+                        except (ValueError, subprocess.TimeoutExpired):
+                            pass
+                if pids:
+                    time.sleep(0.5)  # Warte kurz bis Prozesse beendet sind
+        except FileNotFoundError:
+            # pgrep nicht verfügbar, versuche mit ps
+            try:
+                result = subprocess.run(
+                    ['ps', 'aux'],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'arecord' in line and 'grep' not in line:
+                            parts = line.split()
+                            if len(parts) > 1:
+                                try:
+                                    pid = int(parts[1])
+                                    print(f"Beende arecord-Prozess PID {pid}...")
+                                    subprocess.run(['kill', '-TERM', str(pid)], timeout=1)
+                                except (ValueError, IndexError):
+                                    pass
+                    time.sleep(0.5)
+            except:
+                pass
+        except Exception as e:
+            print(f"Warnung: Konnte laufende arecord-Prozesse nicht prüfen: {e}")
+    
     def _monitor_level(self, temp_file):
         """Überwache Audio-Level während der Aufnahme"""
         while self._is_recording:
@@ -88,6 +138,13 @@ class ALSARecorder:
             self.alsa_device = devices[0]['alsa_id']
             print(f"Verwende ALSA-Gerät: {self.alsa_device}")
         
+        # Prüfe ob bereits eine Aufnahme läuft
+        if self._is_recording and self.process:
+            raise Exception("Aufnahme läuft bereits")
+        
+        # Beende eventuell laufende arecord-Prozesse die das Gerät blockieren
+        self._kill_existing_arecord_processes()
+        
         self._is_recording = True
         
         # Generiere Dateinamen
@@ -99,6 +156,9 @@ class ALSARecorder:
         
         self.output_path = output_dir / self.filename
         temp_wav = self.output_path
+        
+        # Stelle sicher, dass das Verzeichnis existiert
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         try:
             # Starte arecord-Prozess
@@ -124,11 +184,21 @@ class ALSARecorder:
             )
             
             # Prüfe kurz ob Prozess gestartet wurde
-            time.sleep(0.1)
+            time.sleep(0.2)
             if self.process.poll() is not None:
                 # Prozess ist bereits beendet - Fehler!
                 stderr_output = self.process.stderr.read().decode('utf-8', errors='ignore')
-                raise Exception(f"arecord-Prozess startete nicht. Fehler: {stderr_output}")
+                error_msg = f"arecord-Prozess startete nicht. Fehler: {stderr_output}"
+                
+                # Prüfe ob "Device or resource busy" Fehler
+                if "Device or resource busy" in stderr_output or "busy" in stderr_output.lower():
+                    error_msg += "\n\nDas Gerät wird möglicherweise von einem anderen Prozess verwendet."
+                    error_msg += "\nVersuche:"
+                    error_msg += "\n1. Prüfe mit 'lsof /dev/snd/*' welche Prozesse das Gerät verwenden"
+                    error_msg += f"\n2. Prüfe mit 'fuser -v /dev/snd/*' welche Prozesse das Gerät blockieren"
+                    error_msg += f"\n3. Starte den Server neu"
+                
+                raise Exception(error_msg)
             
             print(f"arecord-Prozess läuft (PID: {self.process.pid})")
             
