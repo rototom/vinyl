@@ -14,6 +14,7 @@ from track_splitter import TrackSplitter
 from tagger import AudioTagger
 from metadata_search import MetadataSearcher
 from config import Config
+from recording_state import RecordingState
 import asyncio
 
 app = FastAPI(title="Vinyl Digitalizer")
@@ -40,6 +41,9 @@ CONFIG_DIR.mkdir(exist_ok=True)
 # Konfiguration laden
 config = Config(CONFIG_DIR / "settings.json")
 auto_stop_silence_duration = config.get("recording.auto_stop_silence_duration", 10.0)
+
+# Aufnahme-Status laden
+recording_state = RecordingState(CONFIG_DIR / "recording_state.json")
 
 # Frontend statisch servieren
 try:
@@ -169,6 +173,54 @@ splitter.min_track_duration = config.get("recording.min_track_duration", 10.0)
 tagger = AudioTagger()
 metadata_searcher = MetadataSearcher()
 
+# Prüfe beim Start ob eine Aufnahme läuft und stelle sie wieder her
+def restore_recording_state():
+    """Stelle Aufnahme-Status wieder her falls eine Aufnahme läuft"""
+    if recording_state.is_recording():
+        filename = recording_state.get_filename()
+        if filename:
+            # Prüfe ob die Aufnahme-Datei existiert
+            recording_path = RECORDINGS_DIR / filename
+            recorder_type = recording_state.state.get("recorder_type")
+            
+            if recorder_type == "alsa":
+                # Für ALSA: Prüfe ob arecord-Prozess läuft
+                import subprocess
+                try:
+                    # Prüfe ob arecord-Prozess läuft (suche nach arecord-Prozessen)
+                    result = subprocess.run(
+                        ['pgrep', '-f', 'arecord'],
+                        capture_output=True,
+                        text=True,
+                        timeout=1
+                    )
+                    if result.returncode == 0:
+                        # Prüfe ob Datei noch geschrieben wird (Dateigröße ändert sich)
+                        if recording_path.exists():
+                            import time
+                            size1 = recording_path.stat().st_size
+                            time.sleep(0.5)
+                            if recording_path.exists():
+                                size2 = recording_path.stat().st_size
+                                if size2 > size1:
+                                    print(f"✓ Aufnahme läuft noch (ALSA): {filename}")
+                                    return True
+                except Exception as e:
+                    print(f"Fehler beim Prüfen der ALSA-Aufnahme: {e}")
+            else:
+                # Für PyAudio: Prüfe ob Recorder noch läuft
+                if recorder and recorder.is_recording():
+                    print(f"✓ Aufnahme läuft noch (PyAudio): {filename}")
+                    return True
+            
+            # Aufnahme läuft nicht mehr - Status zurücksetzen
+            print(f"⚠️  Aufnahme-Status gefunden, aber Aufnahme läuft nicht mehr: {filename}")
+            recording_state.stop_recording()
+    return False
+
+# Stelle Aufnahme-Status wieder her
+restore_recording_state()
+
 @app.get("/")
 async def read_root():
     """Serviere HTML-Datei - MUSS NACH ALLEN ANDEREN ROUTEN KOMMEN!"""
@@ -210,7 +262,8 @@ async def get_status():
             "devices": [],
             "alsa_devices": [],
             "use_alsa": False,
-            "error": "AudioRecorder nicht verfügbar"
+            "error": "AudioRecorder nicht verfügbar",
+            "recording_filename": None
         }
     
     # Prüfe ob ALSA-Recorder verwendet wird
@@ -232,12 +285,17 @@ async def get_status():
     else:
         current_device = recorder.device_index
     
+    # Prüfe sowohl Recorder-Status als auch persistenten Status
+    is_recording = recorder.is_recording() or recording_state.is_recording()
+    recording_filename = recording_state.get_filename() if is_recording else None
+    
     return {
-        "recording": recorder.is_recording(),
+        "recording": is_recording,
         "devices": pyaudio_devices,
         "alsa_devices": alsa_devices,
         "use_alsa": is_alsa,
-        "current_device": current_device
+        "current_device": current_device,
+        "recording_filename": recording_filename
     }
 
 @app.post("/api/start-recording")
@@ -268,6 +326,12 @@ async def start_recording():
         ) + ".wav"
     
     filename = recorder.start_recording(RECORDINGS_DIR, filename_template)
+    
+    # Speichere Status persistent
+    recorder_type = "alsa" if isinstance(recorder, ALSARecorder) else "pyaudio"
+    device = recorder.alsa_device if isinstance(recorder, ALSARecorder) else recorder.device_index
+    recording_state.start_recording(filename, recorder_type, device)
+    
     return {"filename": filename, "status": "recording_started"}
 
 @app.post("/api/stop-recording")
@@ -284,6 +348,10 @@ async def stop_recording():
         )
     
     filename = recorder.stop_recording()
+    
+    # Aktualisiere persistenten Status
+    recording_state.stop_recording()
+    
     return {"filename": filename, "status": "recording_stopped"}
 
 @app.get("/api/recordings")

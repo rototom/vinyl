@@ -14,6 +14,9 @@ let waveformCanvas = null;
 let waveformCtx = null;
 let waveformData = [];
 let currentAudioPlayer = null;
+let isRecording = false;
+let recordingFilename = null;
+let statusCheckInterval = null;
 
 // Tab-Navigation
 function initTabs() {
@@ -85,7 +88,10 @@ function connectWebSocket() {
         const data = JSON.parse(event.data);
         if (data.type === 'level') {
             updateLevelBar(data.value);
-            updateWaveform(data.value);
+            // Waveform nur aktualisieren wenn Aufnahme läuft
+            if (isRecording) {
+                updateWaveform(data.value);
+            }
         }
     };
     
@@ -94,7 +100,12 @@ function connectWebSocket() {
     };
     
     ws.onclose = () => {
-        setTimeout(connectWebSocket, 1000);
+        // Wenn Aufnahme läuft, versuche sofort wieder zu verbinden
+        if (isRecording) {
+            setTimeout(connectWebSocket, 500);
+        } else {
+            setTimeout(connectWebSocket, 1000);
+        }
     };
 }
 
@@ -129,24 +140,22 @@ function initWaveform() {
 function updateWaveform(level) {
     if (!waveformCanvas || !waveformCtx) return;
     
-    const stopBtn = document.getElementById('stopBtn');
-    const isRecording = stopBtn && !stopBtn.disabled;
-    
-    if (!isRecording) {
+    // Zeige Waveform immer während Aufnahme läuft
+    if (isRecording) {
+        waveformCanvas.style.display = 'block';
+        waveformData.push(level);
+        
+        const maxPoints = Math.floor(waveformCanvas.width / 2);
+        if (waveformData.length > maxPoints) {
+            waveformData.shift();
+        }
+        
+        drawWaveform();
+    } else {
+        // Waveform nur ausblenden wenn wirklich keine Aufnahme läuft
         waveformCanvas.style.display = 'none';
         waveformData = [];
-        return;
     }
-    
-    waveformCanvas.style.display = 'block';
-    waveformData.push(level);
-    
-    const maxPoints = Math.floor(waveformCanvas.width / 2);
-    if (waveformData.length > maxPoints) {
-        waveformData.shift();
-    }
-    
-    drawWaveform();
 }
 
 function drawWaveform() {
@@ -190,6 +199,68 @@ function drawWaveform() {
     waveformCtx.stroke();
 }
 
+// Update UI basierend auf Aufnahme-Status
+function updateRecordingUI(status) {
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const recordingStatus = document.getElementById('recordingStatus');
+    
+    const wasRecording = isRecording;
+    isRecording = status.recording || false;
+    recordingFilename = status.recording_filename || null;
+    
+    if (isRecording) {
+        // Aufnahme läuft: Start-Button ausblenden, Stop-Button aktivieren
+        startBtn.style.display = 'none';
+        stopBtn.disabled = false;
+        stopBtn.style.display = 'block';
+        recordingStatus.textContent = `🎙️ Aufnahme läuft: ${recordingFilename || 'Unbekannt'}`;
+        recordingStatus.className = 'text-center text-green-400 text-lg font-semibold';
+        
+        // Waveform anzeigen (auch wenn WebSocket noch nicht verbunden ist)
+        if (waveformCanvas) {
+            waveformCanvas.style.display = 'block';
+            // Wenn gerade erst gestartet wurde, zeige leere Waveform
+            if (!wasRecording && waveformData.length === 0) {
+                drawWaveform();
+            }
+        }
+    } else {
+        // Keine Aufnahme: Start-Button anzeigen, Stop-Button deaktivieren
+        startBtn.style.display = 'block';
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        stopBtn.style.display = 'block';
+        
+        // Status nur löschen wenn wirklich gestoppt wurde
+        if (wasRecording) {
+            recordingStatus.textContent = '';
+        }
+        
+        // Waveform ausblenden nur wenn wirklich keine Aufnahme mehr läuft
+        if (!isRecording && waveformCanvas) {
+            waveformCanvas.style.display = 'none';
+            waveformData = [];
+        }
+    }
+}
+
+// Prüfe regelmäßig den Aufnahme-Status
+async function checkRecordingStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/status`);
+        const status = await response.json();
+        updateRecordingUI(status);
+        
+        // Wenn Aufnahme läuft aber WebSocket nicht verbunden, versuche zu verbinden
+        if (status.recording && (!ws || ws.readyState !== WebSocket.OPEN)) {
+            connectWebSocket();
+        }
+    } catch (error) {
+        console.error('Fehler beim Prüfen des Status:', error);
+    }
+}
+
 // Aufnahme starten
 document.getElementById('startBtn').addEventListener('click', async () => {
     try {
@@ -197,10 +268,8 @@ document.getElementById('startBtn').addEventListener('click', async () => {
         const data = await response.json();
         
         if (response.ok) {
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
-            document.getElementById('recordingStatus').textContent = `🎙️ Aufnahme läuft: ${data.filename}`;
-            document.getElementById('recordingStatus').className = 'text-center text-green-400 text-lg font-semibold';
+            // UI wird durch checkRecordingStatus aktualisiert
+            await checkRecordingStatus();
         } else {
             alert('Fehler: ' + data.error);
         }
@@ -216,8 +285,8 @@ document.getElementById('stopBtn').addEventListener('click', async () => {
         const data = await response.json();
         
         if (response.ok) {
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
+            // UI wird durch checkRecordingStatus aktualisiert
+            await checkRecordingStatus();
             document.getElementById('recordingStatus').textContent = `✅ Aufnahme gespeichert: ${data.filename}`;
             document.getElementById('recordingStatus').className = 'text-center text-green-400 text-lg font-semibold';
             loadRecordings();
@@ -856,6 +925,14 @@ initWaveform();
 connectWebSocket();
 loadRecordings();
 loadSettings();
+
+// Prüfe sofort den Status beim Laden
+checkRecordingStatus();
+
+// Prüfe regelmäßig den Aufnahme-Status (alle 2 Sekunden)
+statusCheckInterval = setInterval(checkRecordingStatus, 2000);
+
+// Aktualisiere Aufnahmen-Liste regelmäßig
 setInterval(() => {
     loadRecordings();
     if (!document.getElementById('contentAlbums').classList.contains('hidden')) {
