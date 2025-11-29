@@ -275,6 +275,83 @@ async def tag_track(
             status_code=500
         )
 
+@app.get("/api/audio/{filename}")
+async def get_audio_file(filename: str):
+    """Serviere Audio-Datei für Playback"""
+    filepath = RECORDINGS_DIR / filename
+    if not filepath.exists():
+        return JSONResponse(
+            {"error": "Datei nicht gefunden"}, 
+            status_code=404
+        )
+    return FileResponse(
+        str(filepath),
+        media_type="audio/flac",
+        filename=filename
+    )
+
+@app.get("/api/download/{filename}")
+async def download_file(filename: str):
+    """Download einzelne Audio-Datei"""
+    filepath = RECORDINGS_DIR / filename
+    if not filepath.exists():
+        return JSONResponse(
+            {"error": "Datei nicht gefunden"}, 
+            status_code=404
+        )
+    return FileResponse(
+        str(filepath),
+        media_type="application/octet-stream",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.get("/api/download-album/{base_filename}")
+async def download_album(base_filename: str):
+    """Download Album als ZIP-Datei"""
+    import zipfile
+    import tempfile
+    
+    # Finde alle Dateien die zu diesem Album gehören
+    base_name = Path(base_filename).stem.replace('_track_', '').split('_track_')[0]
+    album_files = []
+    
+    # Original-Aufnahme
+    original_file = RECORDINGS_DIR / base_filename
+    if original_file.exists():
+        album_files.append(original_file)
+    
+    # Alle Tracks
+    for file in RECORDINGS_DIR.glob(f"{base_name}_track_*.flac"):
+        album_files.append(file)
+    
+    if not album_files:
+        return JSONResponse(
+            {"error": "Keine Dateien für Album gefunden"}, 
+            status_code=404
+        )
+    
+    # Erstelle ZIP-Datei
+    zip_filename = f"{base_name}_album.zip"
+    zip_path = RECORDINGS_DIR / zip_filename
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file in album_files:
+                zipf.write(file, file.name)
+        
+        return FileResponse(
+            str(zip_path),
+            media_type="application/zip",
+            filename=zip_filename,
+            headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Fehler beim Erstellen der ZIP-Datei: {e}"}, 
+            status_code=500
+        )
+
 @app.delete("/api/delete/{filename}")
 async def delete_recording(filename: str):
     filepath = RECORDINGS_DIR / filename

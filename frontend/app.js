@@ -9,6 +9,10 @@ const getApiBase = () => {
 const API_BASE = getApiBase();
 let ws = null;
 let recordings = [];
+let waveformCanvas = null;
+let waveformCtx = null;
+let waveformData = [];
+let currentAudioPlayer = null;
 
 // WebSocket für Audio-Level
 function connectWebSocket() {
@@ -40,6 +44,78 @@ function updateLevelBar(level) {
     document.getElementById('levelBar').style.width = percentage + '%';
     document.getElementById('levelText').textContent = 
         `Level: ${percentage.toFixed(1)}%`;
+    
+    // Waveform aktualisieren
+    updateWaveform(level);
+}
+
+function initWaveform() {
+    waveformCanvas = document.getElementById('waveformCanvas');
+    if (waveformCanvas) {
+        waveformCtx = waveformCanvas.getContext('2d');
+        waveformCanvas.width = waveformCanvas.offsetWidth;
+        waveformCanvas.height = waveformCanvas.offsetHeight;
+    }
+}
+
+function updateWaveform(level) {
+    if (!waveformCanvas || !waveformCtx) return;
+    
+    const isRecording = document.getElementById('stopBtn').disabled === false;
+    if (!isRecording) {
+        waveformCanvas.style.display = 'none';
+        waveformData = [];
+        return;
+    }
+    
+    waveformCanvas.style.display = 'block';
+    
+    // Füge neuen Datenpunkt hinzu
+    waveformData.push(level);
+    
+    // Begrenze auf Canvas-Breite
+    const maxPoints = waveformCanvas.width / 2;
+    if (waveformData.length > maxPoints) {
+        waveformData.shift();
+    }
+    
+    // Zeichne Waveform
+    waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+    waveformCtx.strokeStyle = '#60a5fa';
+    waveformCtx.lineWidth = 2;
+    waveformCtx.beginPath();
+    
+    const centerY = waveformCanvas.height / 2;
+    const stepX = waveformCanvas.width / waveformData.length;
+    
+    waveformData.forEach((value, index) => {
+        const x = index * stepX;
+        const amplitude = value * waveformCanvas.height * 0.4;
+        const y = centerY - amplitude;
+        
+        if (index === 0) {
+            waveformCtx.moveTo(x, y);
+        } else {
+            waveformCtx.lineTo(x, y);
+        }
+    });
+    
+    waveformCtx.stroke();
+    
+    // Zeichne auch untere Hälfte (gespiegelt)
+    waveformCtx.beginPath();
+    waveformData.forEach((value, index) => {
+        const x = index * stepX;
+        const amplitude = value * waveformCanvas.height * 0.4;
+        const y = centerY + amplitude;
+        
+        if (index === 0) {
+            waveformCtx.moveTo(x, y);
+        } else {
+            waveformCtx.lineTo(x, y);
+        }
+    });
+    waveformCtx.stroke();
 }
 
 // Aufnahme starten
@@ -211,13 +287,53 @@ function displayTracks(tracks) {
     const list = document.getElementById('tracksList');
     list.innerHTML = '';
     
+    if (tracks.length === 0) {
+        list.innerHTML = '<p class="text-gray-300">Keine Tracks gefunden</p>';
+        return;
+    }
+    
+    // Album-Download-Button hinzufügen
+    if (tracks.length > 0) {
+        const baseFilename = tracks[0].filename.split('_track_')[0];
+        const albumDiv = document.createElement('div');
+        albumDiv.className = 'bg-indigo-900/50 rounded-lg p-4 mb-4 border border-indigo-600';
+        albumDiv.innerHTML = `
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-white font-semibold">📀 Album: ${baseFilename}</p>
+                    <p class="text-gray-400 text-sm">${tracks.length} Tracks</p>
+                </div>
+                <a href="${API_BASE.replace('/api', '')}/api/download-album/${tracks[0].filename}" 
+                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg">
+                    ⬇ Album herunterladen (ZIP)
+                </a>
+            </div>
+        `;
+        list.appendChild(albumDiv);
+    }
+    
     tracks.forEach(track => {
         const duration = formatTime(track.duration);
+        const audioUrl = `${API_BASE.replace('/api', '')}/api/audio/${track.filename}`;
+        const downloadUrl = `${API_BASE.replace('/api', '')}/api/download/${track.filename}`;
+        
         const div = document.createElement('div');
-        div.className = 'bg-gray-800 rounded-lg p-4';
+        div.className = 'bg-gray-800 rounded-lg p-4 mb-3';
         div.innerHTML = `
-            <p class="text-white font-semibold">Track ${track.track_number}: ${track.filename}</p>
-            <p class="text-gray-400 text-sm">Dauer: ${duration}</p>
+            <div class="mb-3">
+                <p class="text-white font-semibold">Track ${track.track_number}: ${track.filename}</p>
+                <p class="text-gray-400 text-sm">Dauer: ${duration} • ${(track.start_time / 60).toFixed(1)}min - ${(track.end_time / 60).toFixed(1)}min</p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <audio controls class="flex-1" preload="metadata">
+                    <source src="${audioUrl}" type="audio/flac">
+                    Dein Browser unterstützt kein Audio-Element.
+                </audio>
+                <a href="${downloadUrl}" download="${track.filename}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap">
+                    ⬇ Download
+                </a>
+            </div>
         `;
         list.appendChild(div);
     });
@@ -429,6 +545,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 });
 
 // Initialisierung
+initWaveform();
 connectWebSocket();
 loadRecordings();
 loadSettings();
