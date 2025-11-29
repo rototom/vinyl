@@ -39,6 +39,7 @@ CONFIG_DIR.mkdir(exist_ok=True)
 
 # Konfiguration laden
 config = Config(CONFIG_DIR / "settings.json")
+auto_stop_silence_duration = config.get("recording.auto_stop_silence_duration", 10.0)
 
 # Frontend statisch servieren
 try:
@@ -132,6 +133,8 @@ try:
     devices = pyrecorder.get_audio_devices()
     if devices and len(devices) > 0:
         recorder = pyrecorder
+        recorder.silence_threshold_db = config.get("recording.silence_threshold_db", -40)
+        recorder.auto_stop_silence_seconds = auto_stop_silence_duration
         print("✓ PyAudio-Recorder initialisiert")
     else:
         print("⚠️  PyAudio findet keine Input-Geräte, verwende ALSA-Recorder")
@@ -834,7 +837,8 @@ async def update_settings(
     naming_use_timestamp: Optional[bool] = Form(None),
     recording_silence_threshold: Optional[float] = Form(None),
     recording_min_silence_duration: Optional[float] = Form(None),
-    recording_min_track_duration: Optional[float] = Form(None)
+    recording_min_track_duration: Optional[float] = Form(None),
+    recording_auto_stop_silence_duration: Optional[float] = Form(None)
 ):
     """Aktualisiere Einstellungen"""
     try:
@@ -863,6 +867,8 @@ async def update_settings(
             config.set("recording.min_silence_duration", recording_min_silence_duration)
         if recording_min_track_duration is not None:
             config.set("recording.min_track_duration", recording_min_track_duration)
+        if recording_auto_stop_silence_duration is not None:
+            config.set("recording.auto_stop_silence_duration", recording_auto_stop_silence_duration)
         
         # AudioRecorder neu initialisieren wenn Gerät geändert wurde
         if recorder is not None and not recorder.is_recording():
@@ -890,10 +896,21 @@ async def update_settings(
                     status_code=500
                 )
         
-        # TrackSplitter-Einstellungen aktualisieren
-        splitter.silence_threshold = config.get("recording.silence_threshold_db", -40)
-        splitter.min_silence_duration = config.get("recording.min_silence_duration", 2.0)
-        splitter.min_track_duration = config.get("recording.min_track_duration", 10.0)
+        # AudioRecorder / TrackSplitter Einstellungen aktualisieren
+        silence_threshold_db = config.get("recording.silence_threshold_db", -40)
+        min_silence = config.get("recording.min_silence_duration", 2.0)
+        min_track = config.get("recording.min_track_duration", 10.0)
+        auto_stop = config.get("recording.auto_stop_silence_duration", 10.0)
+
+        splitter.silence_threshold = silence_threshold_db
+        splitter.min_silence_duration = min_silence
+        splitter.min_track_duration = min_track
+
+        if recorder is not None and not recorder.is_recording():
+            if hasattr(recorder, "silence_threshold_db"):
+                recorder.silence_threshold_db = silence_threshold_db
+            if hasattr(recorder, "auto_stop_silence_seconds"):
+                recorder.auto_stop_silence_seconds = auto_stop
         
         return {"status": "success", "settings": config.config}
     except Exception as e:

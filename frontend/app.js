@@ -793,6 +793,11 @@ async function loadSettings() {
             document.getElementById('silenceThreshold').value = settings.recording.silence_threshold_db || -40;
             document.getElementById('minSilenceDuration').value = settings.recording.min_silence_duration || 2.0;
             document.getElementById('minTrackDuration').value = settings.recording.min_track_duration || 10.0;
+            const autoStopInput = document.getElementById('autoStopSilence');
+            if (autoStopInput) {
+                const autoStopValue = settings.recording.auto_stop_silence_duration;
+                autoStopInput.value = autoStopValue !== undefined && autoStopValue !== null ? autoStopValue : 10.0;
+            }
         }
     } catch (error) {
         console.error('Fehler beim Laden der Einstellungen:', error);
@@ -821,6 +826,10 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
     settingsData.append('recording_silence_threshold', parseFloat(formData.get('recording_silence_threshold')));
     settingsData.append('recording_min_silence_duration', parseFloat(formData.get('recording_min_silence_duration')));
     settingsData.append('recording_min_track_duration', parseFloat(formData.get('recording_min_track_duration')));
+    const autoStopRaw = formData.get('recording_auto_stop_silence_duration');
+    if (autoStopRaw !== null) {
+        settingsData.append('recording_auto_stop_silence_duration', parseFloat(autoStopRaw));
+    }
     
     try {
         const response = await fetch(`${API_BASE}/settings`, {

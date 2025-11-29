@@ -38,6 +38,10 @@ class AudioRecorder:
         self.current_level = 0.0
         self.filename = None
         self.output_path = None
+        self.silence_threshold_db = -40.0
+        self.auto_stop_silence_seconds = 10.0
+        self._silence_duration = 0.0
+        self._silence_stop_triggered = False
     
     def set_device(self, device_index):
         """Setze Audio-Gerät"""
@@ -188,7 +192,28 @@ class AudioRecorder:
             # Berechne Audio-Level für Visualisierung
             audio_data = np.frombuffer(in_data, dtype=np.int16)
             self.current_level = np.abs(audio_data).mean() / 32768.0
+            self._check_auto_stop(self.current_level, frame_count / self.sample_rate)
         return (in_data, pyaudio.paContinue)
+
+    def _check_auto_stop(self, level, chunk_duration):
+        if not self.auto_stop_silence_seconds or self.auto_stop_silence_seconds <= 0:
+            return
+        amplitude_threshold = 10 ** (self.silence_threshold_db / 20.0) if self.silence_threshold_db is not None else 0.01
+        if level <= amplitude_threshold:
+            self._silence_duration += chunk_duration
+            if not self._silence_stop_triggered and self._silence_duration >= self.auto_stop_silence_seconds:
+                self._silence_stop_triggered = True
+                threading.Thread(target=self._stop_due_to_silence, daemon=True).start()
+        else:
+            self._silence_duration = 0.0
+            self._silence_stop_triggered = False
+
+    def _stop_due_to_silence(self):
+        try:
+            print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille")
+            self.stop_recording()
+        except Exception as e:
+            print(f"Fehler beim Stoppen aufgrund von Stille: {e}")
     
     def start_recording(self, output_dir: Path, filename_template: str = None):
         """Starte Aufnahme"""
@@ -218,6 +243,8 @@ class AudioRecorder:
         
         self.frames = []
         self._is_recording = True
+        self._silence_duration = 0.0
+        self._silence_stop_triggered = False
         
         try:
             # Versuche mit konfigurierten Einstellungen
