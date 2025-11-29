@@ -1,4 +1,12 @@
-const API_BASE = 'http://localhost:8045/api';
+// API-Base-URL dynamisch basierend auf aktuellem Host
+const getApiBase = () => {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const host = window.location.hostname;
+    const port = window.location.port || '8045';
+    return `${protocol}//${host}:${port}/api`;
+};
+
+const API_BASE = getApiBase();
 let ws = null;
 let recordings = [];
 
