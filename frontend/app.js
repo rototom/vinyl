@@ -756,10 +756,6 @@ async function selectAlbum(mbid, albumTitle, trackCount) {
 
 // Aufnahme löschen - muss global verfügbar sein für onclick
 window.deleteRecording = async function(filename) {
-    if (!confirmAction(`Möchten Sie "${filename}" wirklich löschen?`)) {
-        return;
-    }
-    
     try {
         // URL-encode den Dateinamen für sichere Übertragung
         const encodedFilename = encodeURIComponent(filename);
@@ -782,10 +778,6 @@ window.deleteRecording = async function(filename) {
 
 // Track löschen - muss global verfügbar sein für onclick
 window.deleteTrack = async function(filename, trackTitle) {
-    if (!confirmAction(`Möchten Sie "${trackTitle}" (${filename}) wirklich löschen?`)) {
-        return;
-    }
-    
     try {
         // URL-encode den Dateinamen für sichere Übertragung
         const encodedFilename = encodeURIComponent(filename);
@@ -809,11 +801,6 @@ window.deleteTrack = async function(filename, trackTitle) {
 
 // Album löschen - muss global verfügbar sein für onclick
 window.deleteAlbum = async function(baseFilename, albumTitle, artist) {
-    const albumName = `${artist} - ${albumTitle}`;
-    if (!confirmAction(`Möchten Sie das komplette Album "${albumName}" wirklich löschen?\n\nDies löscht alle Tracks, das Cover und die Original-Aufnahme.`)) {
-        return;
-    }
-    
     try {
         // URL-encode den Dateinamen für sichere Übertragung
         const encodedFilename = encodeURIComponent(baseFilename);
