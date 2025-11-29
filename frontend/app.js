@@ -269,8 +269,109 @@ function formatTime(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+// Einstellungen laden
+async function loadSettings() {
+    try {
+        const response = await fetch(`${API_BASE}/settings`);
+        const settings = await response.json();
+        
+        // Audio-Gerät
+        const deviceSelect = document.getElementById('audioDeviceSelect');
+        const statusResponse = await fetch(`${API_BASE}/status`);
+        const status = await statusResponse.json();
+        
+        deviceSelect.innerHTML = '<option value="-1">Standard-Gerät</option>';
+        if (status.devices) {
+            status.devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.index;
+                option.textContent = `${device.index}: ${device.name} (${device.channels} Kanäle)`;
+                if (device.index === status.current_device_index) {
+                    option.selected = true;
+                }
+                deviceSelect.appendChild(option);
+            });
+        }
+        
+        // ALSA-Geräte
+        const alsaSelect = document.getElementById('alsaDeviceSelect');
+        alsaSelect.innerHTML = '<option value="">-- Keine ALSA-Geräte gefunden --</option>';
+        if (status.alsa_devices && status.alsa_devices.length > 0) {
+            alsaSelect.innerHTML = '<option value="">-- ALSA-Geräte (nur Info) --</option>';
+            status.alsa_devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.alsa_id;
+                option.textContent = `${device.name} (${device.alsa_id})`;
+                alsaSelect.appendChild(option);
+            });
+        }
+        
+        // Audio-Einstellungen
+        if (settings.audio) {
+            document.getElementById('sampleRateSelect').value = settings.audio.sample_rate || 44100;
+            document.getElementById('channelsSelect').value = settings.audio.channels || 2;
+        }
+        
+        // Naming-Einstellungen
+        if (settings.naming) {
+            document.getElementById('namingPattern').value = settings.naming.pattern || '{date}';
+            document.getElementById('useTimestamp').checked = settings.naming.use_timestamp !== false;
+        }
+        
+        // Recording-Einstellungen
+        if (settings.recording) {
+            document.getElementById('silenceThreshold').value = settings.recording.silence_threshold_db || -40;
+            document.getElementById('minSilenceDuration').value = settings.recording.min_silence_duration || 2.0;
+            document.getElementById('minTrackDuration').value = settings.recording.min_track_duration || 10.0;
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden der Einstellungen:', error);
+    }
+}
+
+// Einstellungen speichern
+document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    
+    // Konvertiere Checkbox-Wert
+    const useTimestamp = document.getElementById('useTimestamp').checked;
+    
+    const settingsData = new FormData();
+    const deviceIndex = parseInt(formData.get('audio_device_index'));
+    settingsData.append('audio_device_index', deviceIndex);
+    settingsData.append('audio_sample_rate', parseInt(formData.get('audio_sample_rate')));
+    settingsData.append('audio_channels', parseInt(formData.get('audio_channels')));
+    settingsData.append('naming_pattern', formData.get('naming_pattern'));
+    settingsData.append('naming_use_timestamp', useTimestamp);
+    settingsData.append('recording_silence_threshold', parseFloat(formData.get('recording_silence_threshold')));
+    settingsData.append('recording_min_silence_duration', parseFloat(formData.get('recording_min_silence_duration')));
+    settingsData.append('recording_min_track_duration', parseFloat(formData.get('recording_min_track_duration')));
+    
+    try {
+        const response = await fetch(`${API_BASE}/settings`, {
+            method: 'POST',
+            body: settingsData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('✅ Einstellungen erfolgreich gespeichert!');
+            // Gerät neu laden
+            loadSettings();
+        } else {
+            alert('Fehler: ' + data.error);
+        }
+    } catch (error) {
+        alert('Fehler beim Speichern: ' + error.message);
+    }
+});
+
 // Initialisierung
 connectWebSocket();
 loadRecordings();
+loadSettings();
 setInterval(loadRecordings, 5000); // Alle 5 Sekunden aktualisieren
 

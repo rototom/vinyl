@@ -8,7 +8,7 @@ import threading
 import time
 
 class AudioRecorder:
-    def __init__(self):
+    def __init__(self, device_index=None, sample_rate=44100, channels=2, chunk=4096):
         try:
             self.audio = pyaudio.PyAudio()
             self._audio_available = True
@@ -17,16 +17,23 @@ class AudioRecorder:
             self.audio = None
             self._audio_available = False
         
+        self.device_index = device_index
         self._is_recording = False
         self.frames = []
         self.stream = None
-        self.sample_rate = 44100
-        self.channels = 2
-        self.chunk = 4096
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.chunk = chunk
         self.format = pyaudio.paInt16 if self._audio_available else None
         self.current_level = 0.0
         self.filename = None
         self.output_path = None
+    
+    def set_device(self, device_index):
+        """Setze Audio-Gerät"""
+        if self._is_recording:
+            raise Exception("Gerät kann nicht während der Aufnahme geändert werden")
+        self.device_index = device_index
         
     def get_audio_devices(self):
         """Liste verfügbarer Audio-Geräte"""
@@ -55,7 +62,7 @@ class AudioRecorder:
             self.current_level = np.abs(audio_data).mean() / 32768.0
         return (in_data, pyaudio.paContinue)
     
-    def start_recording(self, output_dir: Path):
+    def start_recording(self, output_dir: Path, filename_template: str = None):
         """Starte Aufnahme"""
         if not self._audio_available or self.audio is None:
             raise Exception("AudioRecorder nicht verfügbar - PyAudio konnte nicht initialisiert werden")
@@ -67,12 +74,14 @@ class AudioRecorder:
         self._is_recording = True
         
         try:
-            # Standard-Input-Gerät verwenden (kann konfiguriert werden)
+            # Verwende konfiguriertes Gerät oder Standard-Gerät
+            input_device_index = self.device_index if self.device_index is not None else None
             self.stream = self.audio.open(
                 format=self.format,
                 channels=self.channels,
                 rate=self.sample_rate,
                 input=True,
+                input_device_index=input_device_index,
                 frames_per_buffer=self.chunk,
                 stream_callback=self._audio_callback
             )
@@ -82,8 +91,13 @@ class AudioRecorder:
             self._is_recording = False
             raise Exception(f"Fehler beim Starten der Aufnahme: {e}")
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.filename = f"recording_{timestamp}.wav"
+        # Verwende Template oder Standard-Benennung
+        if filename_template:
+            self.filename = filename_template
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.filename = f"recording_{timestamp}.wav"
+        
         self.output_path = output_dir / self.filename
         
         return self.filename

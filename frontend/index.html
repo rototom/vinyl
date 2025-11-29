@@ -64,6 +64,92 @@
             </div>
         </div>
 
+        <!-- Einstellungen -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-white mb-6">⚙️ Einstellungen</h2>
+            <form id="settingsForm" class="space-y-6">
+                <!-- Audio-Gerät -->
+                <div>
+                    <label class="block text-white mb-2 font-semibold">Audio-Gerät (PyAudio):</label>
+                    <select id="audioDeviceSelect" name="audio_device_index" class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        <option value="-1">Standard-Gerät</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-white mb-2 font-semibold">ALSA-Gerät:</label>
+                    <select id="alsaDeviceSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        <option value="">-- Nicht verfügbar --</option>
+                    </select>
+                    <p class="text-gray-400 text-sm mt-1">ALSA-Geräte werden erkannt, aber PyAudio-Geräte werden für die Aufnahme verwendet</p>
+                </div>
+                
+                <!-- Audio-Einstellungen -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-white mb-2">Sample Rate:</label>
+                        <select id="sampleRateSelect" name="audio_sample_rate" class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                            <option value="44100">44100 Hz (CD-Qualität)</option>
+                            <option value="48000">48000 Hz</option>
+                            <option value="96000">96000 Hz (Hi-Res)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-white mb-2">Kanäle:</label>
+                        <select id="channelsSelect" name="audio_channels" class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                            <option value="1">Mono</option>
+                            <option value="2">Stereo</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Benennung -->
+                <div>
+                    <label class="block text-white mb-2 font-semibold">Dateinamen-Pattern:</label>
+                    <input type="text" id="namingPattern" name="naming_pattern" value="{date}" 
+                           class="w-full p-3 rounded-lg bg-gray-800 text-white" 
+                           placeholder="{date}, {time}, {artist}, {album}">
+                    <p class="text-gray-400 text-sm mt-1">Verfügbare Platzhalter: {date}, {time}, {artist}, {album}</p>
+                </div>
+                
+                <div>
+                    <label class="flex items-center text-white">
+                        <input type="checkbox" id="useTimestamp" name="naming_use_timestamp" checked class="mr-2">
+                        Zeitstempel zum Dateinamen hinzufügen
+                    </label>
+                </div>
+                
+                <!-- Track-Splitting Einstellungen -->
+                <div class="border-t border-gray-700 pt-4">
+                    <h3 class="text-xl font-semibold text-white mb-4">Track-Splitting</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-white mb-2">Silence-Schwelle (dB):</label>
+                            <input type="number" id="silenceThreshold" name="recording_silence_threshold" value="-40" 
+                                   step="1" min="-60" max="0" 
+                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        </div>
+                        <div>
+                            <label class="block text-white mb-2">Min. Pausen-Dauer (s):</label>
+                            <input type="number" id="minSilenceDuration" name="recording_min_silence_duration" value="2.0" 
+                                   step="0.1" min="0.5" max="10" 
+                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        </div>
+                        <div>
+                            <label class="block text-white mb-2">Min. Track-Dauer (s):</label>
+                            <input type="number" id="minTrackDuration" name="recording_min_track_duration" value="10.0" 
+                                   step="0.5" min="5" max="60" 
+                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
+                    💾 Einstellungen speichern
+                </button>
+            </form>
+        </div>
+
         <!-- Tagging -->
         <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
             <h2 class="text-2xl font-semibold text-white mb-6">Metadaten bearbeiten</h2>

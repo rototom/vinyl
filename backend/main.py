@@ -6,9 +6,11 @@ import uvicorn
 import os
 import json
 from pathlib import Path
+from datetime import datetime
 from audio_recorder import AudioRecorder
 from track_splitter import TrackSplitter
 from tagger import AudioTagger
+from config import Config
 import asyncio
 
 app = FastAPI(title="Vinyl Digitalizer")
@@ -26,9 +28,14 @@ app.add_middleware(
 BASE_DIR = Path(__file__).parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 RECORDINGS_DIR = BASE_DIR / "recordings"
+CONFIG_DIR = BASE_DIR / "config"
 
 # Verzeichnisse erstellen
 RECORDINGS_DIR.mkdir(exist_ok=True)
+CONFIG_DIR.mkdir(exist_ok=True)
+
+# Konfiguration laden
+config = Config(CONFIG_DIR / "settings.json")
 
 # Frontend statisch servieren
 try:
@@ -41,12 +48,26 @@ except Exception as e:
 
 # Globale Instanzen - mit Fehlerbehandlung
 try:
-    recorder = AudioRecorder()
+    device_index = config.get("audio.device_index")
+    sample_rate = config.get("audio.sample_rate", 44100)
+    channels = config.get("audio.channels", 2)
+    chunk_size = config.get("audio.chunk_size", 4096)
+    recorder = AudioRecorder(
+        device_index=device_index,
+        sample_rate=sample_rate,
+        channels=channels,
+        chunk=chunk_size
+    )
 except Exception as e:
     print(f"Warnung: AudioRecorder konnte nicht initialisiert werden: {e}")
     recorder = None
 
+# TrackSplitter mit Konfiguration initialisieren
 splitter = TrackSplitter()
+splitter.silence_threshold = config.get("recording.silence_threshold_db", -40)
+splitter.min_silence_duration = config.get("recording.min_silence_duration", 2.0)
+splitter.min_track_duration = config.get("recording.min_track_duration", 10.0)
+
 tagger = AudioTagger()
 
 @app.get("/")
@@ -62,11 +83,21 @@ async def get_status():
         return {
             "recording": False,
             "devices": [],
+            "alsa_devices": [],
             "error": "AudioRecorder nicht verfügbar"
         }
+    
+    # PyAudio-Geräte
+    pyaudio_devices = recorder.get_audio_devices()
+    
+    # ALSA-Geräte
+    alsa_devices = Config.get_alsa_devices()
+    
     return {
         "recording": recorder.is_recording(),
-        "devices": recorder.get_audio_devices()
+        "devices": pyaudio_devices,
+        "alsa_devices": alsa_devices,
+        "current_device_index": recorder.device_index
     }
 
 @app.post("/api/start-recording")
@@ -82,7 +113,21 @@ async def start_recording():
             status_code=400
         )
     
-    filename = recorder.start_recording(RECORDINGS_DIR)
+    # Generiere Dateinamen basierend auf Konfiguration
+    naming_pattern = config.get("naming.pattern", "{date}")
+    use_timestamp = config.get("naming.use_timestamp", True)
+    timestamp_format = config.get("naming.timestamp_format", "%Y%m%d_%H%M%S")
+    
+    if use_timestamp:
+        timestamp = datetime.now().strftime(timestamp_format)
+        filename_template = f"recording_{timestamp}.wav"
+    else:
+        filename_template = naming_pattern.format(
+            date=datetime.now().strftime("%Y%m%d"),
+            time=datetime.now().strftime("%H%M%S")
+        ) + ".wav"
+    
+    filename = recorder.start_recording(RECORDINGS_DIR, filename_template)
     return {"filename": filename, "status": "recording_started"}
 
 @app.post("/api/stop-recording")
@@ -170,6 +215,83 @@ async def delete_recording(filename: str):
         {"error": "Datei nicht gefunden"}, 
         status_code=404
     )
+
+@app.get("/api/settings")
+async def get_settings():
+    """Hole alle Einstellungen"""
+    return {
+        "audio": config.get("audio", {}),
+        "naming": config.get("naming", {}),
+        "recording": config.get("recording", {})
+    }
+
+@app.post("/api/settings")
+async def update_settings(
+    audio_device_index: int = Form(None),
+    audio_device_name: str = Form(None),
+    audio_sample_rate: int = Form(None),
+    audio_channels: int = Form(None),
+    naming_pattern: str = Form(None),
+    naming_use_timestamp: bool = Form(None),
+    recording_silence_threshold: float = Form(None),
+    recording_min_silence_duration: float = Form(None),
+    recording_min_track_duration: float = Form(None)
+):
+    """Aktualisiere Einstellungen"""
+    try:
+        # Audio-Einstellungen
+        if audio_device_index is not None:
+            config.set("audio.device_index", audio_device_index if audio_device_index >= 0 else None)
+        if audio_device_name is not None:
+            config.set("audio.device_name", audio_device_name)
+        if audio_sample_rate is not None:
+            config.set("audio.sample_rate", audio_sample_rate)
+        if audio_channels is not None:
+            config.set("audio.channels", audio_channels)
+        
+        # Naming-Einstellungen
+        if naming_pattern is not None:
+            config.set("naming.pattern", naming_pattern)
+        if naming_use_timestamp is not None:
+            config.set("naming.use_timestamp", naming_use_timestamp)
+        
+        # Recording-Einstellungen
+        if recording_silence_threshold is not None:
+            config.set("recording.silence_threshold_db", recording_silence_threshold)
+        if recording_min_silence_duration is not None:
+            config.set("recording.min_silence_duration", recording_min_silence_duration)
+        if recording_min_track_duration is not None:
+            config.set("recording.min_track_duration", recording_min_track_duration)
+        
+        # AudioRecorder neu initialisieren wenn Gerät geändert wurde
+        if audio_device_index is not None and recorder is not None:
+            if not recorder.is_recording():
+                try:
+                    device_index = audio_device_index if audio_device_index >= 0 else None
+                    sample_rate = config.get("audio.sample_rate", 44100)
+                    channels = config.get("audio.channels", 2)
+                    chunk_size = config.get("audio.chunk_size", 4096)
+                    recorder.set_device(device_index)
+                    recorder.sample_rate = sample_rate
+                    recorder.channels = channels
+                    recorder.chunk = chunk_size
+                except Exception as e:
+                    return JSONResponse(
+                        {"error": f"Fehler beim Ändern des Geräts: {e}"},
+                        status_code=500
+                    )
+        
+        # TrackSplitter-Einstellungen aktualisieren
+        splitter.silence_threshold = config.get("recording.silence_threshold_db", -40)
+        splitter.min_silence_duration = config.get("recording.min_silence_duration", 2.0)
+        splitter.min_track_duration = config.get("recording.min_track_duration", 10.0)
+        
+        return {"status": "success", "settings": config.config}
+    except Exception as e:
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500
+        )
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
