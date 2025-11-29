@@ -187,18 +187,32 @@ function displayRecordings() {
     recordings.forEach(rec => {
         const sizeMB = (rec.size / 1024 / 1024).toFixed(2);
         const date = new Date(rec.created * 1000).toLocaleString('de-DE');
+        const audioUrl = `${API_BASE.replace('/api', '')}/api/audio/${rec.filename}`;
+        const downloadUrl = `${API_BASE.replace('/api', '')}/api/download/${rec.filename}`;
         
         const div = document.createElement('div');
-        div.className = 'bg-gray-800 rounded-lg p-4 flex justify-between items-center';
+        div.className = 'bg-gray-800 rounded-lg p-4';
         div.innerHTML = `
-            <div>
-                <p class="text-white font-semibold">${rec.filename}</p>
-                <p class="text-gray-400 text-sm">${sizeMB} MB • ${date}</p>
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex-1">
+                    <p class="text-white font-semibold">${rec.filename}</p>
+                    <p class="text-gray-400 text-sm">${sizeMB} MB • ${date}</p>
+                </div>
+                <button onclick="deleteRecording('${rec.filename}')" 
+                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg ml-2">
+                    Löschen
+                </button>
             </div>
-            <button onclick="deleteRecording('${rec.filename}')" 
-                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">
-                Löschen
-            </button>
+            <div class="flex items-center space-x-2">
+                <audio controls class="flex-1" preload="metadata">
+                    <source src="${audioUrl}" type="audio/flac">
+                    Dein Browser unterstützt kein Audio-Element.
+                </audio>
+                <a href="${downloadUrl}" download="${rec.filename}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap">
+                    ⬇ Download
+                </a>
+            </div>
         `;
         list.appendChild(div);
     });
