@@ -15,10 +15,7 @@ fi
 # Aktiviere virtuelle Umgebung
 source venv/bin/activate
 
-# Wechsle ins Backend-Verzeichnis
-cd backend
-
-# Starte Server
+# Starte Server vom Projekt-Root aus (Pfade werden in main.py korrekt aufgelöst)
 echo "🚀 Starte Vinyl Digitalizer Server auf Port 8045..."
-python main.py
+python backend/main.py
 

@@ -22,13 +22,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Projekt-Root-Verzeichnis bestimmen (ein Verzeichnis über backend/)
+BASE_DIR = Path(__file__).parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+RECORDINGS_DIR = BASE_DIR / "recordings"
+
 # Verzeichnisse erstellen
-RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
 
 # Frontend statisch servieren
 try:
-    app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+    if FRONTEND_DIR.exists():
+        app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")
+    else:
+        print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {FRONTEND_DIR}")
 except Exception as e:
     print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {e}")
 
@@ -44,7 +51,10 @@ tagger = AudioTagger()
 
 @app.get("/")
 async def read_root():
-    return FileResponse("frontend/index.html")
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise FileNotFoundError(f"Frontend-Datei nicht gefunden: {index_path}")
+    return FileResponse(str(index_path))
 
 @app.get("/api/status")
 async def get_status():
