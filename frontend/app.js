@@ -395,6 +395,10 @@ function displayTracks(tracks) {
                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap transition-all">
                     ⬇ Download
                 </a>
+                <button onclick="deleteTrack('${track.filename}', 'Track ${track.track_number}')" 
+                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all">
+                    🗑️ Löschen
+                </button>
             </div>
         `;
         list.appendChild(div);
@@ -448,6 +452,10 @@ function displayAlbums() {
                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-all">
                             ⬇ Album herunterladen
                         </a>
+                        <button onclick="deleteAlbum('${album.tracks[0].filename}', ${JSON.stringify(album.album)}, ${JSON.stringify(album.artist)})" 
+                                class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-all">
+                            🗑️ Album löschen
+                        </button>
                     </div>
                 </div>
             </div>
@@ -466,6 +474,10 @@ function displayAlbums() {
                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm transition-all">
                                 ⬇
                             </a>
+                            <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(track.title)})" 
+                                    class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm transition-all">
+                                🗑️
+                            </button>
                         </div>
                     `;
                 }).join('')}
@@ -633,7 +645,58 @@ async function deleteRecording(filename) {
             loadRecordings();
             loadAlbums();
         } else {
-            alert('Fehler beim Löschen');
+            const data = await response.json().catch(() => ({}));
+            alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    } catch (error) {
+        alert('Fehler: ' + error.message);
+    }
+}
+
+// Track löschen
+async function deleteTrack(filename, trackTitle) {
+    if (!confirm(`Möchten Sie "${trackTitle}" (${filename}) wirklich löschen?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/delete/${filename}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('✅ Track erfolgreich gelöscht');
+            loadRecordings();
+            loadAlbums();
+        } else {
+            const data = await response.json().catch(() => ({}));
+            alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    } catch (error) {
+        alert('Fehler: ' + error.message);
+    }
+}
+
+// Album löschen
+async function deleteAlbum(baseFilename, albumTitle, artist) {
+    const albumName = `${artist} - ${albumTitle}`;
+    if (!confirm(`Möchten Sie das komplette Album "${albumName}" wirklich löschen?\n\nDies löscht alle Tracks, das Cover und die Original-Aufnahme.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/delete-album/${baseFilename}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ Album erfolgreich gelöscht\n\n${data.count} Dateien wurden entfernt.`);
+            loadRecordings();
+            loadAlbums();
+        } else {
+            alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
         }
     } catch (error) {
         alert('Fehler: ' + error.message);

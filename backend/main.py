@@ -637,14 +637,127 @@ async def download_album(base_filename: str):
 
 @app.delete("/api/delete/{filename}")
 async def delete_recording(filename: str):
+    """Lösche eine Aufnahme oder einen Track"""
     filepath = RECORDINGS_DIR / filename
     if filepath.exists():
         filepath.unlink()
-        return {"status": "deleted"}
+        return {"status": "deleted", "filename": filename}
     return JSONResponse(
         {"error": "Datei nicht gefunden"}, 
         status_code=404
     )
+
+@app.delete("/api/delete-album/{base_filename}")
+async def delete_album(base_filename: str):
+    """Lösche ein komplettes Album (alle Tracks, Cover und Original-Aufnahme)"""
+    # Extrahiere Basis-Namen (ohne _track_XX)
+    base_name = Path(base_filename).stem
+    if "_track_" in base_name:
+        base_name = base_name.split("_track_")[0]
+    
+    deleted_files = []
+    errors = []
+    
+    # Finde alle Tracks dieses Albums
+    track_files = list(RECORDINGS_DIR.glob(f"{base_name}_track_*.flac"))
+    
+    # Wenn keine Tracks gefunden, versuche mit dem übergebenen Dateinamen
+    if not track_files:
+        # Versuche Original-Aufnahme zu finden
+        possible_names = [
+            base_filename,
+            f"{base_name}.flac",
+            f"{base_name}.wav"
+        ]
+        for name in possible_names:
+            original_file = RECORDINGS_DIR / name
+            if original_file.exists():
+                track_files = [original_file]
+                break
+    
+    # Lösche alle Tracks
+    for file in track_files:
+        try:
+            file.unlink()
+            deleted_files.append(file.name)
+        except Exception as e:
+            errors.append(f"Fehler beim Löschen von {file.name}: {e}")
+    
+    # Finde und lösche Original-Aufnahme (falls vorhanden)
+    # Suche nach Dateien die nicht _track_ enthalten aber den gleichen Basis-Namen haben
+    for file in RECORDINGS_DIR.glob(f"{base_name}.*"):
+        if "_track_" not in file.name and file.name not in deleted_files:
+            # Prüfe ob es eine Audio-Datei ist
+            if file.suffix.lower() in ['.flac', '.wav', '.mp3']:
+                try:
+                    file.unlink()
+                    deleted_files.append(file.name)
+                except Exception as e:
+                    errors.append(f"Fehler beim Löschen von {file.name}: {e}")
+    
+    # Finde und lösche Cover-Art
+    # Versuche verschiedene Cover-Namen
+    cover_patterns = [
+        f"{base_name}_cover.jpg",
+        f"{base_name}_cover.png"
+    ]
+    
+    # Prüfe auch nach Cover-Dateien die zu Tracks gehören
+    if track_files:
+        # Verwende den ersten Track um Album-Info zu bekommen
+        try:
+            from mutagen.flac import FLAC
+            audio = FLAC(str(track_files[0]))
+            album = audio.get('ALBUM', [''])[0]
+            artist = audio.get('ALBUMARTIST', audio.get('ARTIST', [''])[0])[0]
+            if album and artist:
+                # Suche nach Cover mit Album-Key Format
+                album_key = f"{artist} - {album}"
+                safe_key = "".join(c for c in album_key if c.isalnum() or c in (' ', '-', '_')).strip().replace(' ', '_')
+                cover_patterns.append(f"{safe_key}_cover.jpg")
+        except:
+            pass
+    
+    for pattern in cover_patterns:
+        cover_file = RECORDINGS_DIR / pattern
+        if cover_file.exists() and cover_file.name not in deleted_files:
+            try:
+                cover_file.unlink()
+                deleted_files.append(cover_file.name)
+            except Exception as e:
+                errors.append(f"Fehler beim Löschen von {cover_file.name}: {e}")
+    
+    # Suche auch nach allen Cover-Dateien die zu diesem Album gehören könnten
+    for file in RECORDINGS_DIR.glob("*_cover.jpg"):
+        if file.name in deleted_files:
+            continue
+        try:
+            # Prüfe ob Cover zu einem Track dieses Albums gehört
+            cover_base = file.stem.replace('_cover', '')
+            matching_tracks = list(RECORDINGS_DIR.glob(f"{cover_base}_track_*.flac"))
+            if matching_tracks:
+                # Prüfe ob einer der Tracks zu unserem Album gehört
+                for track_file in matching_tracks:
+                    track_base = track_file.stem.split('_track_')[0]
+                    if track_base == base_name:
+                        file.unlink()
+                        deleted_files.append(file.name)
+                        break
+        except Exception as e:
+            pass  # Ignoriere Fehler bei Cover-Prüfung
+    
+    if not deleted_files:
+        return JSONResponse(
+            {"error": "Keine Dateien für Album gefunden"}, 
+            status_code=404
+        )
+    
+    return {
+        "status": "deleted",
+        "deleted_files": deleted_files,
+        "count": len(deleted_files),
+        "errors": errors if errors else None
+    }
 
 @app.get("/api/settings")
 async def get_settings():
