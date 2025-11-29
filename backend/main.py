@@ -161,7 +161,11 @@ async def read_root():
     index_path = FRONTEND_DIR / "index.html"
     if not index_path.exists():
         raise FileNotFoundError(f"Frontend-Datei nicht gefunden: {index_path}")
-    return FileResponse(str(index_path))
+    return FileResponse(
+        str(index_path),
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @app.get("/api/status")
 async def get_status():
