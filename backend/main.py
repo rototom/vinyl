@@ -55,7 +55,13 @@ except Exception as e:
 async def serve_app_js():
     js_path = FRONTEND_DIR / "app.js"
     if js_path.exists():
-        return FileResponse(str(js_path), media_type="application/javascript")
+        from fastapi.responses import Response
+        content = js_path.read_text(encoding='utf-8')
+        return Response(
+            content=content,
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache"}
+        )
     raise FileNotFoundError("app.js nicht gefunden")
 
 @app.get("/styles.css")
