@@ -53,6 +53,26 @@ function initTabs() {
 }
 
 // WebSocket für Audio-Level
+const DELETE_CONFIRM_KEY = 'vinyl-confirm-delete';
+const confirmDeleteCheckbox = document.getElementById('confirmDeleteCheckbox');
+let confirmDeletes = localStorage.getItem(DELETE_CONFIRM_KEY);
+confirmDeletes = confirmDeletes === null ? true : confirmDeletes === 'true';
+
+if (confirmDeleteCheckbox) {
+    confirmDeleteCheckbox.checked = confirmDeletes;
+    confirmDeleteCheckbox.addEventListener('change', (event) => {
+        confirmDeletes = event.target.checked;
+        localStorage.setItem(DELETE_CONFIRM_KEY, confirmDeletes);
+    });
+}
+
+function confirmAction(message) {
+    if (!confirmDeletes) {
+        return true;
+    }
+    return confirm(message);
+}
+
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
@@ -633,7 +653,7 @@ async function selectAlbum(mbid, albumTitle, trackCount) {
 
 // Aufnahme löschen
 async function deleteRecording(filename) {
-    if (!confirm(`Möchten Sie "${filename}" wirklich löschen?`)) {
+    if (!confirmAction(`Möchten Sie "${filename}" wirklich löschen?`)) {
         return;
     }
     
@@ -656,7 +676,7 @@ async function deleteRecording(filename) {
 
 // Track löschen
 async function deleteTrack(filename, trackTitle) {
-    if (!confirm(`Möchten Sie "${trackTitle}" (${filename}) wirklich löschen?`)) {
+    if (!confirmAction(`Möchten Sie "${trackTitle}" (${filename}) wirklich löschen?`)) {
         return;
     }
     
@@ -681,7 +701,7 @@ async function deleteTrack(filename, trackTitle) {
 // Album löschen
 async function deleteAlbum(baseFilename, albumTitle, artist) {
     const albumName = `${artist} - ${albumTitle}`;
-    if (!confirm(`Möchten Sie das komplette Album "${albumName}" wirklich löschen?\n\nDies löscht alle Tracks, das Cover und die Original-Aufnahme.`)) {
+    if (!confirmAction(`Möchten Sie das komplette Album "${albumName}" wirklich löschen?\n\nDies löscht alle Tracks, das Cover und die Original-Aufnahme.`)) {
         return;
     }
     
