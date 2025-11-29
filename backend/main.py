@@ -27,10 +27,18 @@ RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
 
 # Frontend statisch servieren
-app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+try:
+    app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+except Exception as e:
+    print(f"Warnung: Frontend-Verzeichnis nicht gefunden: {e}")
 
-# Globale Instanzen
-recorder = AudioRecorder()
+# Globale Instanzen - mit Fehlerbehandlung
+try:
+    recorder = AudioRecorder()
+except Exception as e:
+    print(f"Warnung: AudioRecorder konnte nicht initialisiert werden: {e}")
+    recorder = None
+
 splitter = TrackSplitter()
 tagger = AudioTagger()
 
@@ -40,6 +48,12 @@ async def read_root():
 
 @app.get("/api/status")
 async def get_status():
+    if recorder is None:
+        return {
+            "recording": False,
+            "devices": [],
+            "error": "AudioRecorder nicht verfügbar"
+        }
     return {
         "recording": recorder.is_recording(),
         "devices": recorder.get_audio_devices()
@@ -47,6 +61,11 @@ async def get_status():
 
 @app.post("/api/start-recording")
 async def start_recording():
+    if recorder is None:
+        return JSONResponse(
+            {"error": "AudioRecorder nicht verfügbar"}, 
+            status_code=503
+        )
     if recorder.is_recording():
         return JSONResponse(
             {"error": "Aufnahme läuft bereits"}, 
@@ -58,6 +77,11 @@ async def start_recording():
 
 @app.post("/api/stop-recording")
 async def stop_recording():
+    if recorder is None:
+        return JSONResponse(
+            {"error": "AudioRecorder nicht verfügbar"}, 
+            status_code=503
+        )
     if not recorder.is_recording():
         return JSONResponse(
             {"error": "Keine Aufnahme aktiv"}, 
@@ -142,7 +166,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            if recorder.is_recording():
+            if recorder and recorder.is_recording():
                 level = recorder.get_current_level()
                 await websocket.send_json({
                     "type": "level",
