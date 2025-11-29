@@ -3,213 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vinyl Digitalizer</title>
+    <title>Vinyl Digitalizer - Professionelle Schallplatten-Digitalisierung</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/styles.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
 </head>
 <body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="text-center mb-12">
-            <h1 class="text-5xl font-bold text-white mb-4">🎵 Vinyl Digitalizer</h1>
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <svg class="w-12 h-12 text-indigo-300" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                    <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                </svg>
+                <h1 class="text-5xl font-bold text-white">Vinyl Digitalizer</h1>
+            </div>
             <p class="text-xl text-blue-200">Professionelle Schallplatten-Digitalisierung</p>
         </header>
 
-        <!-- Aufnahme-Sektion -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">Aufnahme</h2>
-            
-            <div class="flex flex-col items-center space-y-6">
-                <!-- Audio-Level Visualisierung -->
-                <div class="w-full max-w-md">
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <div id="levelBar" class="h-8 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded transition-all duration-100" style="width: 0%"></div>
-                    </div>
-                    <p class="text-center text-gray-300 mt-2" id="levelText">Bereit</p>
-                </div>
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6 bg-white/10 backdrop-blur-lg rounded-t-2xl p-2 border-b border-white/20">
+            <button id="tabRecord" class="tab-btn flex-1 py-3 px-6 rounded-xl font-semibold transition-all tab-active">
+                🎙️ Aufnahme
+            </button>
+            <button id="tabAlbums" class="tab-btn flex-1 py-3 px-6 rounded-xl font-semibold transition-all text-white/70 hover:text-white hover:bg-white/10">
+                📀 Alben-Sammlung
+            </button>
+            <button id="tabSettings" class="tab-btn flex-1 py-3 px-6 rounded-xl font-semibold transition-all text-white/70 hover:text-white hover:bg-white/10">
+                ⚙️ Einstellungen
+            </button>
+        </div>
+
+        <!-- Tab Content: Aufnahme -->
+        <div id="contentRecord" class="tab-content">
+            <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-6">
+                <h2 class="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+                    <span>🎙️</span> Aufnahme starten
+                </h2>
                 
-                <!-- Waveform Visualisierung -->
-                <div class="w-full max-w-4xl mt-4">
-                    <canvas id="waveformCanvas" class="w-full h-32 bg-gray-900 rounded-lg" style="display: none;"></canvas>
+                <!-- Audio-Level & Waveform -->
+                <div class="mb-8">
+                    <div class="bg-gray-900/50 rounded-xl p-4 mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-white font-semibold">Audio-Level</span>
+                            <span id="levelText" class="text-gray-300 text-sm">Bereit</span>
+                        </div>
+                        <div id="levelBar" class="h-6 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded-lg transition-all duration-100" style="width: 0%"></div>
+                    </div>
+                    <canvas id="waveformCanvas" class="w-full h-32 bg-gray-900/50 rounded-xl" style="display: none;"></canvas>
                 </div>
 
                 <!-- Aufnahme-Buttons -->
-                <div class="flex space-x-4">
-                    <button id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg">
-                        ▶ Aufnahme starten
+                <div class="flex gap-4 justify-center mb-6">
+                    <button id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-10 rounded-xl transition-all transform hover:scale-105 shadow-lg text-lg flex items-center gap-2">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Aufnahme starten
                     </button>
-                    <button id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg" disabled>
-                        ⏹ Aufnahme stoppen
+                    <button id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-10 rounded-xl transition-all transform hover:scale-105 shadow-lg text-lg flex items-center gap-2" disabled>
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 6h12v12H6z"/>
+                        </svg>
+                        Aufnahme stoppen
                     </button>
                 </div>
 
-                <div id="recordingStatus" class="text-white text-lg"></div>
+                <div id="recordingStatus" class="text-center text-white text-lg font-semibold"></div>
             </div>
-        </div>
 
-        <!-- Aufnahmen-Liste -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">Aufnahmen</h2>
-            <div id="recordingsList" class="space-y-4">
-                <!-- Wird dynamisch gefüllt -->
+            <!-- Aufnahmen-Liste -->
+            <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-6">
+                <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                    <span>📁</span> Aufnahmen
+                </h2>
+                <div id="recordingsList" class="space-y-3">
+                    <p class="text-gray-400 text-center py-8">Keine Aufnahmen vorhanden</p>
+                </div>
             </div>
-        </div>
 
-        <!-- Track-Splitting -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">Track-Splitting</h2>
-            <div id="splitSection" class="hidden">
+            <!-- Track-Splitting -->
+            <div id="splitSection" class="glass-effect rounded-2xl shadow-2xl p-8 mb-6 hidden">
+                <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                    <span>✂️</span> Tracks automatisch splitten
+                </h2>
                 <div class="mb-4">
-                    <label class="block text-white mb-2">Aufnahme auswählen:</label>
-                    <select id="recordingSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white"></select>
+                    <label class="block text-white mb-2 font-semibold">Aufnahme auswählen:</label>
+                    <select id="recordingSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700"></select>
                 </div>
-                <button id="splitBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                <button id="splitBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
                     🔪 Tracks automatisch splitten
                 </button>
-                <div id="tracksList" class="mt-6 space-y-4"></div>
+                <div id="tracksList" class="mt-6 space-y-3"></div>
             </div>
-        </div>
 
-        <!-- Album-Metadaten-Suche -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">🔍 Album-Metadaten automatisch finden</h2>
-            <div id="metadataSearchSection">
+            <!-- Album-Metadaten-Suche -->
+            <div class="glass-effect rounded-2xl shadow-2xl p-8">
+                <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                    <span>🔍</span> Album-Metadaten automatisch finden
+                </h2>
                 <form id="searchAlbumForm" class="space-y-4 mb-6">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-white mb-2">Interpret:</label>
-                            <input type="text" id="searchArtist" class="w-full p-3 rounded-lg bg-gray-800 text-white" placeholder="z.B. The Beatles" required>
+                            <label class="block text-white mb-2 font-semibold">Interpret:</label>
+                            <input type="text" id="searchArtist" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700" placeholder="z.B. The Beatles" required>
                         </div>
                         <div>
-                            <label class="block text-white mb-2">Album:</label>
-                            <input type="text" id="searchAlbum" class="w-full p-3 rounded-lg bg-gray-800 text-white" placeholder="z.B. Abbey Road" required>
+                            <label class="block text-white mb-2 font-semibold">Album:</label>
+                            <input type="text" id="searchAlbum" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700" placeholder="z.B. Abbey Road" required>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-white mb-2">Tracks pro LP-Seite (optional):</label>
-                        <input type="number" id="tracksPerSide" class="w-full p-3 rounded-lg bg-gray-800 text-white" placeholder="z.B. 5" min="1">
+                        <label class="block text-white mb-2 font-semibold">Tracks pro LP-Seite (optional):</label>
+                        <input type="number" id="tracksPerSide" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700" placeholder="z.B. 5" min="1">
                         <p class="text-gray-400 text-sm mt-1">Hilft bei der Auswahl des richtigen Albums</p>
                     </div>
                     <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
                         🔍 Album suchen
                     </button>
                 </form>
-                <div id="albumSearchResults" class="space-y-4 mt-4"></div>
+                <div id="albumSearchResults" class="space-y-4"></div>
             </div>
         </div>
 
-        <!-- Einstellungen -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">⚙️ Einstellungen</h2>
-            <form id="settingsForm" class="space-y-6">
-                <!-- Audio-Gerät -->
-                <div>
-                    <label class="block text-white mb-2 font-semibold">Audio-Gerät (PyAudio):</label>
-                    <select id="audioDeviceSelect" name="audio_device_index" class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        <option value="-1">Standard-Gerät</option>
-                    </select>
+        <!-- Tab Content: Alben-Sammlung -->
+        <div id="contentAlbums" class="tab-content hidden">
+            <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-3xl font-bold text-white flex items-center gap-3">
+                        <span>📀</span> Meine Alben-Sammlung
+                    </h2>
+                    <button id="downloadCollectionBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Gesamte Sammlung herunterladen
+                    </button>
                 </div>
-                
-                <div id="alsaDeviceSection">
-                    <label class="block text-white mb-2 font-semibold">ALSA-Gerät:</label>
-                    <select id="alsaDeviceSelect" name="audio_alsa_device" class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        <option value="">-- Auswählen --</option>
-                    </select>
-                    <p class="text-gray-400 text-sm mt-1" id="alsaInfo">Wird verwendet wenn PyAudio keine Input-Geräte findet</p>
+                <div id="albumsList" class="space-y-6">
+                    <p class="text-gray-400 text-center py-12">Keine Alben vorhanden</p>
                 </div>
-                
-                <!-- Audio-Einstellungen -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-white mb-2">Sample Rate:</label>
-                        <select id="sampleRateSelect" name="audio_sample_rate" class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                            <option value="44100">44100 Hz (CD-Qualität)</option>
-                            <option value="48000">48000 Hz</option>
-                            <option value="96000">96000 Hz (Hi-Res)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-white mb-2">Kanäle:</label>
-                        <select id="channelsSelect" name="audio_channels" class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                            <option value="1">Mono</option>
-                            <option value="2">Stereo</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- Benennung -->
-                <div>
-                    <label class="block text-white mb-2 font-semibold">Dateinamen-Pattern:</label>
-                    <input type="text" id="namingPattern" name="naming_pattern" value="{date}" 
-                           class="w-full p-3 rounded-lg bg-gray-800 text-white" 
-                           placeholder="{date}, {time}, {artist}, {album}">
-                    <p class="text-gray-400 text-sm mt-1">Verfügbare Platzhalter: {date}, {time}, {artist}, {album}</p>
-                </div>
-                
-                <div>
-                    <label class="flex items-center text-white">
-                        <input type="checkbox" id="useTimestamp" name="naming_use_timestamp" checked class="mr-2">
-                        Zeitstempel zum Dateinamen hinzufügen
-                    </label>
-                </div>
-                
-                <!-- Track-Splitting Einstellungen -->
-                <div class="border-t border-gray-700 pt-4">
-                    <h3 class="text-xl font-semibold text-white mb-4">Track-Splitting</h3>
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-white mb-2">Silence-Schwelle (dB):</label>
-                            <input type="number" id="silenceThreshold" name="recording_silence_threshold" value="-40" 
-                                   step="1" min="-60" max="0" 
-                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        </div>
-                        <div>
-                            <label class="block text-white mb-2">Min. Pausen-Dauer (s):</label>
-                            <input type="number" id="minSilenceDuration" name="recording_min_silence_duration" value="2.0" 
-                                   step="0.1" min="0.5" max="10" 
-                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        </div>
-                        <div>
-                            <label class="block text-white mb-2">Min. Track-Dauer (s):</label>
-                            <input type="number" id="minTrackDuration" name="recording_min_track_duration" value="10.0" 
-                                   step="0.5" min="5" max="60" 
-                                   class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        </div>
-                    </div>
-                </div>
-                
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
-                    💾 Einstellungen speichern
-                </button>
-            </form>
+            </div>
         </div>
 
-        <!-- Tagging -->
-        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
-            <h2 class="text-2xl font-semibold text-white mb-6">Metadaten bearbeiten</h2>
-            <div id="tagSection" class="hidden">
-                <form id="tagForm" class="space-y-4">
-                    <div>
-                        <label class="block text-white mb-2">Track:</label>
-                        <select id="trackSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white" required></select>
+        <!-- Tab Content: Einstellungen -->
+        <div id="contentSettings" class="tab-content hidden">
+            <div class="glass-effect rounded-2xl shadow-2xl p-8">
+                <h2 class="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+                    <span>⚙️</span> Einstellungen
+                </h2>
+                <form id="settingsForm" class="space-y-6">
+                    <!-- Audio-Gerät -->
+                    <div class="bg-gray-900/30 rounded-xl p-6">
+                        <h3 class="text-xl font-semibold text-white mb-4">🎤 Audio-Gerät</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">PyAudio-Gerät:</label>
+                                <select id="audioDeviceSelect" name="audio_device_index" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                                    <option value="-1">Standard-Gerät</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">ALSA-Gerät:</label>
+                                <select id="alsaDeviceSelect" name="audio_alsa_device" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                                    <option value="">-- Auswählen --</option>
+                                </select>
+                                <p class="text-gray-400 text-sm mt-1">Wird verwendet wenn PyAudio keine Input-Geräte findet</p>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-white mb-2">Titel:</label>
-                        <input type="text" id="titleInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    
+                    <!-- Audio-Einstellungen -->
+                    <div class="bg-gray-900/30 rounded-xl p-6">
+                        <h3 class="text-xl font-semibold text-white mb-4">🔊 Audio-Einstellungen</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Sample Rate:</label>
+                                <select id="sampleRateSelect" name="audio_sample_rate" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                                    <option value="44100">44100 Hz (CD-Qualität)</option>
+                                    <option value="48000">48000 Hz</option>
+                                    <option value="96000">96000 Hz (Hi-Res)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Kanäle:</label>
+                                <select id="channelsSelect" name="audio_channels" class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                                    <option value="1">Mono</option>
+                                    <option value="2">Stereo</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-white mb-2">Interpret:</label>
-                        <input type="text" id="artistInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    
+                    <!-- Benennung -->
+                    <div class="bg-gray-900/30 rounded-xl p-6">
+                        <h3 class="text-xl font-semibold text-white mb-4">📝 Dateinamen</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Dateinamen-Pattern:</label>
+                                <input type="text" id="namingPattern" name="naming_pattern" value="{date}" 
+                                       class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700" 
+                                       placeholder="{date}, {time}, {artist}, {album}">
+                                <p class="text-gray-400 text-sm mt-1">Verfügbare Platzhalter: {date}, {time}, {artist}, {album}</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center text-white">
+                                    <input type="checkbox" id="useTimestamp" name="naming_use_timestamp" checked class="mr-2 w-5 h-5">
+                                    Zeitstempel zum Dateinamen hinzufügen
+                                </label>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-white mb-2">Album:</label>
-                        <input type="text" id="albumInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    
+                    <!-- Track-Splitting Einstellungen -->
+                    <div class="bg-gray-900/30 rounded-xl p-6">
+                        <h3 class="text-xl font-semibold text-white mb-4">✂️ Track-Splitting</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Silence-Schwelle (dB):</label>
+                                <input type="number" id="silenceThreshold" name="recording_silence_threshold" value="-40" 
+                                       step="1" min="-60" max="0" 
+                                       class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                            </div>
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Min. Pausen-Dauer (s):</label>
+                                <input type="number" id="minSilenceDuration" name="recording_min_silence_duration" value="2.0" 
+                                       step="0.1" min="0.5" max="10" 
+                                       class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                            </div>
+                            <div>
+                                <label class="block text-white mb-2 font-semibold">Min. Track-Dauer (s):</label>
+                                <input type="number" id="minTrackDuration" name="recording_min_track_duration" value="10.0" 
+                                       step="0.5" min="5" max="60" 
+                                       class="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700">
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-white mb-2">Track-Nummer:</label>
-                        <input type="number" id="trackNumInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" min="1" required>
-                    </div>
-                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
-                        💾 Metadaten speichern
+                    
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-10 rounded-xl transition-all transform hover:scale-105 shadow-lg w-full text-lg">
+                        💾 Einstellungen speichern
                     </button>
                 </form>
             </div>
@@ -219,4 +266,3 @@
     <script src="/app.js"></script>
 </body>
 </html>
-

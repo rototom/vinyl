@@ -65,9 +65,21 @@ async def serve_styles_css():
         return FileResponse(str(css_path), media_type="text/css")
     raise FileNotFoundError("styles.css nicht gefunden")
 
-@app.get("/favicon.ico")
+@app.get("/favicon.svg")
 async def serve_favicon():
-    # Einfach 204 No Content zurückgeben, da kein Favicon vorhanden
+    """Serviere Favicon"""
+    favicon_path = FRONTEND_DIR / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(str(favicon_path), media_type="image/svg+xml")
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
+@app.get("/favicon.ico")
+async def serve_favicon_ico():
+    """Serviere Favicon als ICO (Fallback)"""
+    favicon_path = FRONTEND_DIR / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(str(favicon_path), media_type="image/svg+xml")
     from fastapi.responses import Response
     return Response(status_code=204)
 
@@ -220,14 +232,146 @@ async def stop_recording():
 
 @app.get("/api/recordings")
 async def list_recordings():
+    """Liste alle Aufnahmen (Original-Aufnahmen, keine Tracks)"""
     recordings = []
     for file in RECORDINGS_DIR.glob("*.flac"):
-        recordings.append({
+        # Ignoriere Tracks (haben _track_ im Namen)
+        if "_track_" not in file.name:
+            recordings.append({
+                "filename": file.name,
+                "size": file.stat().st_size,
+                "created": file.stat().st_mtime
+            })
+    return {"recordings": sorted(recordings, key=lambda x: x["created"], reverse=True)}
+
+@app.get("/api/albums")
+async def list_albums():
+    """Gruppiere Tracks nach Album"""
+    from mutagen.flac import FLAC
+    albums = {}
+    
+    # Sammle alle Tracks
+    for file in RECORDINGS_DIR.glob("*_track_*.flac"):
+        try:
+            audio = FLAC(str(file))
+            album = audio.get('ALBUM', ['Unbekanntes Album'])[0]
+            artist = audio.get('ALBUMARTIST', audio.get('ARTIST', ['Unbekannter Künstler'])[0])[0]
+            album_key = f"{artist} - {album}"
+            
+            if album_key not in albums:
+                albums[album_key] = {
+                    "album": album,
+                    "artist": artist,
+                    "tracks": [],
+                    "cover": None,
+                    "year": audio.get('DATE', [None])[0],
+                    "total_tracks": 0
+                }
+            
+            track_num = int(audio.get('TRACKNUMBER', ['0'])[0].split('/')[0])
+            disc_num = int(audio.get('DISCNUMBER', ['1'])[0])
+            
+            # Prüfe ob Cover vorhanden
+            if albums[album_key]["cover"] is None and audio.pictures:
+                # Extrahiere Cover - verwende Album-Key als Basis für Dateinamen
+                safe_album_key = "".join(c for c in album_key if c.isalnum() or c in (' ', '-', '_')).strip().replace(' ', '_')
+                cover_path = RECORDINGS_DIR / f"{safe_album_key}_cover.jpg"
+                if not cover_path.exists():
+                    try:
+                        picture = audio.pictures[0]
+                        cover_path.write_bytes(picture.data)
+                    except Exception as e:
+                        print(f"Fehler beim Extrahieren des Covers: {e}")
+                        pass
+                if cover_path.exists():
+                    albums[album_key]["cover"] = f"/api/cover/{cover_path.name}"
+            
+            albums[album_key]["tracks"].append({
+                "filename": file.name,
+                "title": audio.get('TITLE', ['Unbekannt'])[0],
+                "track_number": track_num,
+                "disc_number": disc_num,
+                "size": file.stat().st_size
+            })
+            
+        except Exception as e:
+            print(f"Fehler beim Lesen von {file}: {e}")
+            continue
+    
+    # Sortiere Tracks innerhalb jedes Albums
+    for album_key in albums:
+        albums[album_key]["tracks"].sort(key=lambda x: (x["disc_number"], x["track_number"]))
+        albums[album_key]["total_tracks"] = len(albums[album_key]["tracks"])
+    
+    return {"albums": albums}
+
+@app.get("/api/tracks/{base_filename}")
+async def list_tracks(base_filename: str):
+    """Liste alle Tracks für eine Aufnahme"""
+    base_name = Path(base_filename).stem.replace('_track_', '').split('_track_')[0]
+    tracks = []
+    
+    for file in sorted(RECORDINGS_DIR.glob(f"{base_name}_track_*.flac")):
+        tracks.append({
             "filename": file.name,
             "size": file.stat().st_size,
             "created": file.stat().st_mtime
         })
-    return {"recordings": sorted(recordings, key=lambda x: x["created"], reverse=True)}
+    
+    return {"tracks": tracks}
+
+@app.get("/api/cover/{filename}")
+async def get_cover(filename: str):
+    """Serviere Cover-Art"""
+    filepath = RECORDINGS_DIR / filename
+    if filepath.exists():
+        return FileResponse(str(filepath), media_type="image/jpeg")
+    return JSONResponse({"error": "Cover nicht gefunden"}, status_code=404)
+
+@app.get("/api/download-collection")
+async def download_collection():
+    """Download aller Alben als ZIP"""
+    import zipfile
+    from mutagen.flac import FLAC
+    
+    # Sammle alle Alben
+    albums = {}
+    for file in RECORDINGS_DIR.glob("*_track_*.flac"):
+        try:
+            audio = FLAC(str(file))
+            album = audio.get('ALBUM', ['Unbekanntes Album'])[0]
+            artist = audio.get('ALBUMARTIST', audio.get('ARTIST', ['Unbekannter Künstler'])[0])[0]
+            album_key = f"{artist} - {album}"
+            
+            if album_key not in albums:
+                albums[album_key] = []
+            albums[album_key].append(file)
+        except:
+            continue
+    
+    if not albums:
+        return JSONResponse({"error": "Keine Alben gefunden"}, status_code=404)
+    
+    # Erstelle ZIP
+    zip_filename = f"vinyl_collection_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    zip_path = RECORDINGS_DIR / zip_filename
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for album_key, files in albums.items():
+                # Erstelle Ordner für jedes Album
+                safe_folder = "".join(c for c in album_key if c.isalnum() or c in (' ', '-', '_')).strip()
+                for file in sorted(files):
+                    zipf.write(file, f"{safe_folder}/{file.name}")
+        
+        return FileResponse(
+            str(zip_path),
+            media_type="application/zip",
+            filename=zip_filename,
+            headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+        )
+    except Exception as e:
+        return JSONResponse({"error": f"Fehler: {e}"}, status_code=500)
 
 @app.post("/api/split-tracks")
 async def split_tracks(filename: str = Form(...)):
@@ -298,11 +442,12 @@ async def auto_tag_album(
         # Hole Cover-Art
         cover_path = None
         try:
-            cover_url = f"{metadata_searcher.coverart_base}/release/{release_mbid}/front-500"
+            cover_url = f"{metadata_searcher.coverart_base}/release/{release_mbid}/front"
             cover_response = requests.get(cover_url, headers=metadata_searcher.headers, timeout=10)
             if cover_response.status_code == 200:
                 cover_path = RECORDINGS_DIR / f"{base_name}_cover.jpg"
                 cover_path.write_bytes(cover_response.content)
+                print(f"✓ Cover-Art gespeichert: {cover_path}")
         except Exception as e:
             print(f"Fehler beim Laden des Covers: {e}")
         
