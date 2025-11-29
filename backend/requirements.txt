@@ -1,0 +1,13 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pyaudio==0.2.14
+soundfile==0.12.1
+librosa==0.10.1
+pydub==0.25.1
+mutagen==1.47.0
+numpy==1.24.3
+scipy==1.11.4
+websockets==12.0
+aiofiles==23.2.1
+

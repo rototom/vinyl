@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinyl Digitalizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-white mb-4">🎵 Vinyl Digitalizer</h1>
+            <p class="text-xl text-blue-200">Professionelle Schallplatten-Digitalisierung</p>
+        </header>
+
+        <!-- Aufnahme-Sektion -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-white mb-6">Aufnahme</h2>
+            
+            <div class="flex flex-col items-center space-y-6">
+                <!-- Audio-Level Visualisierung -->
+                <div class="w-full max-w-md">
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div id="levelBar" class="h-8 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 rounded transition-all duration-100" style="width: 0%"></div>
+                    </div>
+                    <p class="text-center text-gray-300 mt-2" id="levelText">Bereit</p>
+                </div>
+
+                <!-- Aufnahme-Buttons -->
+                <div class="flex space-x-4">
+                    <button id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                        ▶ Aufnahme starten
+                    </button>
+                    <button id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg" disabled>
+                        ⏹ Aufnahme stoppen
+                    </button>
+                </div>
+
+                <div id="recordingStatus" class="text-white text-lg"></div>
+            </div>
+        </div>
+
+        <!-- Aufnahmen-Liste -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-white mb-6">Aufnahmen</h2>
+            <div id="recordingsList" class="space-y-4">
+                <!-- Wird dynamisch gefüllt -->
+            </div>
+        </div>
+
+        <!-- Track-Splitting -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-white mb-6">Track-Splitting</h2>
+            <div id="splitSection" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-white mb-2">Aufnahme auswählen:</label>
+                    <select id="recordingSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white"></select>
+                </div>
+                <button id="splitBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg">
+                    🔪 Tracks automatisch splitten
+                </button>
+                <div id="tracksList" class="mt-6 space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- Tagging -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
+            <h2 class="text-2xl font-semibold text-white mb-6">Metadaten bearbeiten</h2>
+            <div id="tagSection" class="hidden">
+                <form id="tagForm" class="space-y-4">
+                    <div>
+                        <label class="block text-white mb-2">Track:</label>
+                        <select id="trackSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white" required></select>
+                    </div>
+                    <div>
+                        <label class="block text-white mb-2">Titel:</label>
+                        <input type="text" id="titleInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    </div>
+                    <div>
+                        <label class="block text-white mb-2">Interpret:</label>
+                        <input type="text" id="artistInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    </div>
+                    <div>
+                        <label class="block text-white mb-2">Album:</label>
+                        <input type="text" id="albumInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" required>
+                    </div>
+                    <div>
+                        <label class="block text-white mb-2">Track-Nummer:</label>
+                        <input type="number" id="trackNumInput" class="w-full p-3 rounded-lg bg-gray-800 text-white" min="1" required>
+                    </div>
+                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg w-full">
+                        💾 Metadaten speichern
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
