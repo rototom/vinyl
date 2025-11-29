@@ -88,10 +88,8 @@ function connectWebSocket() {
         const data = JSON.parse(event.data);
         if (data.type === 'level') {
             updateLevelBar(data.value);
-            // Waveform nur aktualisieren wenn Aufnahme läuft
-            if (isRecording) {
-                updateWaveform(data.value);
-            }
+            // Waveform immer aktualisieren wenn Level-Daten kommen
+            updateWaveform(data.value);
         }
     };
     
@@ -138,12 +136,19 @@ function initWaveform() {
 }
 
 function updateWaveform(level) {
-    if (!waveformCanvas || !waveformCtx) return;
+    if (!waveformCanvas || !waveformCtx) {
+        // Initialisiere Canvas falls noch nicht geschehen
+        initWaveform();
+        if (!waveformCanvas || !waveformCtx) return;
+    }
     
     // Zeige Waveform immer während Aufnahme läuft
     if (isRecording) {
         waveformCanvas.style.display = 'block';
-        waveformData.push(level);
+        
+        // Füge Level-Daten hinzu (verwende mindestens 0.001 um sichtbar zu sein)
+        const normalizedLevel = Math.max(level || 0, 0.001);
+        waveformData.push(normalizedLevel);
         
         const maxPoints = Math.floor(waveformCanvas.width / 2);
         if (waveformData.length > maxPoints) {
@@ -153,26 +158,47 @@ function updateWaveform(level) {
         drawWaveform();
     } else {
         // Waveform nur ausblenden wenn wirklich keine Aufnahme läuft
-        waveformCanvas.style.display = 'none';
-        waveformData = [];
+        if (!isRecording) {
+            waveformCanvas.style.display = 'none';
+            waveformData = [];
+        }
     }
 }
 
 function drawWaveform() {
-    if (!waveformCtx || waveformData.length === 0) return;
+    if (!waveformCtx || !waveformCanvas) return;
     
     waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+    
+    // Zeichne Hintergrund-Linie (Mittellinie)
+    waveformCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    waveformCtx.lineWidth = 1;
+    waveformCtx.beginPath();
+    waveformCtx.moveTo(0, waveformCanvas.height / 2);
+    waveformCtx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
+    waveformCtx.stroke();
+    
+    if (waveformData.length === 0) {
+        // Zeige leere Waveform mit Hinweis
+        waveformCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        waveformCtx.font = '14px sans-serif';
+        waveformCtx.textAlign = 'center';
+        waveformCtx.fillText('Warte auf Audio-Daten...', waveformCanvas.width / 2, waveformCanvas.height / 2);
+        return;
+    }
+    
     waveformCtx.strokeStyle = '#60a5fa';
     waveformCtx.lineWidth = 2;
     
     const centerY = waveformCanvas.height / 2;
-    const stepX = waveformCanvas.width / waveformData.length;
+    const stepX = waveformData.length > 1 ? waveformCanvas.width / (waveformData.length - 1) : 0;
     
     // Obere Hälfte
     waveformCtx.beginPath();
     waveformData.forEach((value, index) => {
         const x = index * stepX;
-        const amplitude = value * waveformCanvas.height * 0.4;
+        // Skaliere Amplitude für bessere Sichtbarkeit (multipliziere mit Faktor)
+        const amplitude = Math.min(value * waveformCanvas.height * 0.5, waveformCanvas.height * 0.45);
         const y = centerY - amplitude;
         
         if (index === 0) {
@@ -187,7 +213,7 @@ function drawWaveform() {
     waveformCtx.beginPath();
     waveformData.forEach((value, index) => {
         const x = index * stepX;
-        const amplitude = value * waveformCanvas.height * 0.4;
+        const amplitude = Math.min(value * waveformCanvas.height * 0.5, waveformCanvas.height * 0.45);
         const y = centerY + amplitude;
         
         if (index === 0) {
@@ -220,8 +246,10 @@ function updateRecordingUI(status) {
         // Waveform anzeigen (auch wenn WebSocket noch nicht verbunden ist)
         if (waveformCanvas) {
             waveformCanvas.style.display = 'block';
-            // Wenn gerade erst gestartet wurde, zeige leere Waveform
-            if (!wasRecording && waveformData.length === 0) {
+            // Wenn gerade erst gestartet wurde, zeige leere Waveform oder initialisiere mit 0
+            if (!wasRecording) {
+                waveformData = [];
+                // Zeichne leere Waveform um Canvas sichtbar zu machen
                 drawWaveform();
             }
         }
@@ -255,6 +283,12 @@ async function checkRecordingStatus() {
         // Wenn Aufnahme läuft aber WebSocket nicht verbunden, versuche zu verbinden
         if (status.recording && (!ws || ws.readyState !== WebSocket.OPEN)) {
             connectWebSocket();
+        }
+        
+        // Wenn Aufnahme läuft aber keine Waveform-Daten vorhanden, zeige leere Waveform
+        if (status.recording && waveformCanvas && waveformData.length === 0) {
+            waveformCanvas.style.display = 'block';
+            drawWaveform();
         }
     } catch (error) {
         console.error('Fehler beim Prüfen des Status:', error);
