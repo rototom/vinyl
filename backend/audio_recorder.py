@@ -42,16 +42,36 @@ class AudioRecorder:
         devices = []
         try:
             for i in range(self.audio.get_device_count()):
-                info = self.audio.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info['name'],
-                        "channels": info['maxInputChannels']
-                    })
+                try:
+                    info = self.audio.get_device_info_by_index(i)
+                    if info['maxInputChannels'] > 0:
+                        devices.append({
+                            "index": i,
+                            "name": info['name'],
+                            "channels": info['maxInputChannels'],
+                            "sample_rate": info.get('defaultSampleRate', 44100)
+                        })
+                except Exception as e:
+                    print(f"Fehler beim Abrufen von Gerät {i}: {e}")
+                    continue
         except Exception as e:
             print(f"Fehler beim Abrufen der Audio-Geräte: {e}")
         return devices
+    
+    def find_available_input_device(self):
+        """Finde ein verfügbares Input-Gerät"""
+        devices = self.get_audio_devices()
+        if not devices:
+            return None
+        
+        # Wenn ein Gerät konfiguriert ist, prüfe ob es noch verfügbar ist
+        if self.device_index is not None:
+            for device in devices:
+                if device['index'] == self.device_index:
+                    return self.device_index
+        
+        # Verwende das erste verfügbare Gerät
+        return devices[0]['index']
     
     def _audio_callback(self, in_data, frame_count, time_info, status):
         """Callback für Audio-Stream"""
@@ -70,12 +90,29 @@ class AudioRecorder:
         if self._is_recording:
             return None
         
+        # Finde ein verfügbares Input-Gerät
+        available_devices = self.get_audio_devices()
+        if not available_devices:
+            raise Exception("Keine Audio-Input-Geräte gefunden. Bitte ein Gerät anschließen und in den Einstellungen auswählen.")
+        
+        # Bestimme das zu verwendende Gerät
+        input_device_index = self.find_available_input_device()
+        if input_device_index is None:
+            input_device_index = available_devices[0]['index']
+        
+        # Prüfe Gerät-Info
+        try:
+            device_info = self.audio.get_device_info_by_index(input_device_index)
+            if device_info['maxInputChannels'] == 0:
+                raise Exception(f"Gerät {input_device_index} ({device_info['name']}) hat keine Input-Kanäle")
+        except Exception as e:
+            raise Exception(f"Gerät {input_device_index} ist nicht verfügbar: {e}")
+        
         self.frames = []
         self._is_recording = True
         
         try:
-            # Verwende konfiguriertes Gerät oder Standard-Gerät
-            input_device_index = self.device_index if self.device_index is not None else None
+            # Versuche mit konfigurierten Einstellungen
             self.stream = self.audio.open(
                 format=self.format,
                 channels=self.channels,
@@ -87,6 +124,17 @@ class AudioRecorder:
             )
             
             self.stream.start_stream()
+        except OSError as e:
+            self._is_recording = False
+            error_msg = str(e)
+            if "Invalid input device" in error_msg or "-9996" in error_msg:
+                raise Exception(
+                    f"Audio-Gerät {input_device_index} ist nicht verfügbar oder nicht kompatibel. "
+                    f"Verfügbare Geräte: {[d['index'] for d in available_devices]}. "
+                    f"Bitte ein anderes Gerät in den Einstellungen auswählen."
+                )
+            else:
+                raise Exception(f"Fehler beim Starten der Aufnahme: {e}")
         except Exception as e:
             self._is_recording = False
             raise Exception(f"Fehler beim Starten der Aufnahme: {e}")
