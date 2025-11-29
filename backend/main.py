@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, F
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 import uvicorn
 import os
 import json
@@ -225,17 +226,19 @@ async def get_settings():
         "recording": config.get("recording", {})
     }
 
+from typing import Optional
+
 @app.post("/api/settings")
 async def update_settings(
-    audio_device_index: int = Form(None),
-    audio_device_name: str = Form(None),
-    audio_sample_rate: int = Form(None),
-    audio_channels: int = Form(None),
-    naming_pattern: str = Form(None),
-    naming_use_timestamp: bool = Form(None),
-    recording_silence_threshold: float = Form(None),
-    recording_min_silence_duration: float = Form(None),
-    recording_min_track_duration: float = Form(None)
+    audio_device_index: Optional[int] = Form(None),
+    audio_device_name: Optional[str] = Form(None),
+    audio_sample_rate: Optional[int] = Form(None),
+    audio_channels: Optional[int] = Form(None),
+    naming_pattern: Optional[str] = Form(None),
+    naming_use_timestamp: Optional[bool] = Form(None),
+    recording_silence_threshold: Optional[float] = Form(None),
+    recording_min_silence_duration: Optional[float] = Form(None),
+    recording_min_track_duration: Optional[float] = Form(None)
 ):
     """Aktualisiere Einstellungen"""
     try:
