@@ -65,8 +65,7 @@ async def serve_app_js():
             content=content,
             media_type="application/javascript; charset=utf-8",
             headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Content-Type": "application/javascript; charset=utf-8"
+                "Cache-Control": "no-cache, no-store, must-revalidate"
             }
         )
     except Exception as e:
