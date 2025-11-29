@@ -560,15 +560,22 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 });
 
 // Album-Suche
-document.getElementById('searchAlbumForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const artist = document.getElementById('searchArtist').value;
-    const album = document.getElementById('searchAlbum').value;
-    const resultsDiv = document.getElementById('albumSearchResults');
-    
-    resultsDiv.innerHTML = '<p class="text-white">Suche...</p>';
-    resultsDiv.classList.remove('hidden');
+const searchAlbumForm = document.getElementById('searchAlbumForm');
+if (searchAlbumForm) {
+    searchAlbumForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const artist = document.getElementById('searchArtist').value;
+        const album = document.getElementById('searchAlbum').value;
+        const resultsDiv = document.getElementById('albumSearchResults');
+        
+        if (!resultsDiv) {
+            console.error('albumSearchResults Element nicht gefunden');
+            return;
+        }
+        
+        resultsDiv.innerHTML = '<p class="text-white">Suche...</p>';
+        resultsDiv.classList.remove('hidden');
     
     try {
         const formData = new FormData();
@@ -590,7 +597,8 @@ document.getElementById('searchAlbumForm').addEventListener('submit', async (e) 
     } catch (error) {
         resultsDiv.innerHTML = `<p class="text-red-400">Fehler bei der Suche: ${error.message}</p>`;
     }
-});
+    });
+}
 
 function displayAlbumSearchResults(releases, searchArtist, searchAlbum) {
     const resultsDiv = document.getElementById('albumSearchResults');
