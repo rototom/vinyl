@@ -575,7 +575,6 @@ if (searchAlbumForm) {
         }
         
         resultsDiv.innerHTML = '<p class="text-white">Suche...</p>';
-        resultsDiv.classList.remove('hidden');
     
     try {
         const formData = new FormData();
