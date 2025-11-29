@@ -76,12 +76,12 @@
                     </select>
                 </div>
                 
-                <div>
+                <div id="alsaDeviceSection">
                     <label class="block text-white mb-2 font-semibold">ALSA-Gerät:</label>
-                    <select id="alsaDeviceSelect" class="w-full p-3 rounded-lg bg-gray-800 text-white">
-                        <option value="">-- Nicht verfügbar --</option>
+                    <select id="alsaDeviceSelect" name="audio_alsa_device" class="w-full p-3 rounded-lg bg-gray-800 text-white">
+                        <option value="">-- Auswählen --</option>
                     </select>
-                    <p class="text-gray-400 text-sm mt-1">ALSA-Geräte werden erkannt, aber PyAudio-Geräte werden für die Aufnahme verwendet</p>
+                    <p class="text-gray-400 text-sm mt-1" id="alsaInfo">Wird verwendet wenn PyAudio keine Input-Geräte findet</p>
                 </div>
                 
                 <!-- Audio-Einstellungen -->

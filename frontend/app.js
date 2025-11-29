@@ -303,13 +303,26 @@ async function loadSettings() {
         
         // ALSA-Geräte
         const alsaSelect = document.getElementById('alsaDeviceSelect');
-        alsaSelect.innerHTML = '<option value="">-- Keine ALSA-Geräte gefunden --</option>';
+        const alsaSection = document.getElementById('alsaDeviceSection');
+        const alsaInfo = document.getElementById('alsaInfo');
+        
+        if (status.use_alsa) {
+            alsaSection.classList.remove('hidden');
+            alsaInfo.textContent = 'ALSA-Recorder wird verwendet (PyAudio hat keine Input-Geräte gefunden)';
+            alsaInfo.className = 'text-yellow-400 text-sm mt-1';
+        } else {
+            alsaSection.classList.add('hidden');
+        }
+        
+        alsaSelect.innerHTML = '<option value="">-- Auswählen --</option>';
         if (status.alsa_devices && status.alsa_devices.length > 0) {
-            alsaSelect.innerHTML = '<option value="">-- ALSA-Geräte (nur Info) --</option>';
             status.alsa_devices.forEach(device => {
                 const option = document.createElement('option');
-                option.value = device.alsa_id;
-                option.textContent = `${device.name} (${device.alsa_id})`;
+                option.value = device.alsa_id || device.alsa_id;
+                option.textContent = `${device.name} (${device.alsa_id || device.alsa_id})`;
+                if (status.current_device === (device.alsa_id || device.alsa_id)) {
+                    option.selected = true;
+                }
                 alsaSelect.appendChild(option);
             });
         }
@@ -318,6 +331,12 @@ async function loadSettings() {
         if (settings.audio) {
             document.getElementById('sampleRateSelect').value = settings.audio.sample_rate || 44100;
             document.getElementById('channelsSelect').value = settings.audio.channels || 2;
+            
+            // ALSA-Gerät setzen
+            if (settings.audio.alsa_device) {
+                const alsaSelect = document.getElementById('alsaDeviceSelect');
+                alsaSelect.value = settings.audio.alsa_device;
+            }
         }
         
         // Naming-Einstellungen
@@ -349,6 +368,13 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
     const settingsData = new FormData();
     const deviceIndex = parseInt(formData.get('audio_device_index'));
     settingsData.append('audio_device_index', deviceIndex);
+    
+    // ALSA-Gerät
+    const alsaDevice = formData.get('audio_alsa_device');
+    if (alsaDevice) {
+        settingsData.append('audio_alsa_device', alsaDevice);
+    }
+    
     settingsData.append('audio_sample_rate', parseInt(formData.get('audio_sample_rate')));
     settingsData.append('audio_channels', parseInt(formData.get('audio_channels')));
     settingsData.append('naming_pattern', formData.get('naming_pattern'));
