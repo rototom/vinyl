@@ -43,7 +43,7 @@ python3 main.py
 
 ## Verwendung
 
-1. Öffne `http://raspberrypi-ip:8000` im Browser
+1. Öffne `http://raspberrypi-ip:8045` im Browser
 2. Starte die Aufnahme
 3. Stoppe die Aufnahme wenn die Platte fertig ist
 4. Klicke auf "Tracks automatisch splitten"

@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = 'http://localhost:8045/api';
 let ws = null;
 let recordings = [];
 
@@ -6,7 +6,7 @@ let recordings = [];
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
-    const port = window.location.port || '8000';
+    const port = window.location.port || '8045';
     const wsUrl = `${protocol}//${host}:${port}/ws`;
     
     ws = new WebSocket(wsUrl);
