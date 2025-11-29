@@ -171,10 +171,21 @@ async def read_root():
     index_path = FRONTEND_DIR / "index.html"
     if not index_path.exists():
         raise FileNotFoundError(f"Frontend-Datei nicht gefunden: {index_path}")
+    
+    # Lese Datei und prüfe dass sie korrekt ist
+    content = index_path.read_text(encoding='utf-8')
+    if not content.startswith('<!DOCTYPE'):
+        print(f"⚠️  WARNUNG: HTML-Datei beginnt nicht mit <!DOCTYPE! Beginnt mit: {repr(content[:50])}")
+    
+    print(f"✓ Serviere index.html ({len(content)} Zeichen)")
+    
     return FileResponse(
         str(index_path),
         media_type="text/html; charset=utf-8",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Content-Type": "text/html; charset=utf-8"
+        }
     )
 
 @app.get("/api/status")
