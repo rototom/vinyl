@@ -6,12 +6,22 @@ from datetime import datetime
 from pathlib import Path
 import threading
 import time
+import subprocess
 
 class AudioRecorder:
     def __init__(self, device_index=None, sample_rate=44100, channels=2, chunk=4096):
         try:
             self.audio = pyaudio.PyAudio()
             self._audio_available = True
+            
+            # Zeige verfügbare Host-APIs (Backends)
+            print("Verfügbare PyAudio Host-APIs:")
+            for i in range(self.audio.get_host_api_count()):
+                try:
+                    api_info = self.audio.get_host_api_info_by_index(i)
+                    print(f"  {i}: {api_info.get('name', 'Unbekannt')} (Typ: {api_info.get('type', 'Unbekannt')})")
+                except:
+                    pass
         except Exception as e:
             print(f"Warnung: PyAudio konnte nicht initialisiert werden: {e}")
             self.audio = None
@@ -35,43 +45,141 @@ class AudioRecorder:
             raise Exception("Gerät kann nicht während der Aufnahme geändert werden")
         self.device_index = device_index
         
+    def get_alsa_device_mapping(self):
+        """Erstelle Mapping zwischen ALSA-Geräten und PyAudio-Geräten"""
+        mapping = {}
+        try:
+            # Hole ALSA-Geräte
+            result = subprocess.run(
+                ['arecord', '-l'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if 'card' in line.lower():
+                        try:
+                            card_part = line.split(':')[0].strip()
+                            card_num = int(card_part.split()[1])
+                            device_name = line.split(':')[1].split(',')[0].strip()
+                            mapping[card_num] = device_name
+                        except:
+                            pass
+        except:
+            pass
+        
+        return mapping
+    
     def get_audio_devices(self):
         """Liste verfügbarer Audio-Geräte"""
         if not self._audio_available or self.audio is None:
             return []
         devices = []
         try:
-            for i in range(self.audio.get_device_count()):
+            device_count = self.audio.get_device_count()
+            print(f"PyAudio: {device_count} Geräte gefunden")
+            
+            if device_count == 0:
+                print("Warnung: PyAudio findet keine Geräte")
+                return []
+            
+            # Hole ALSA-Mapping für Vergleich
+            alsa_mapping = self.get_alsa_device_mapping()
+            
+            for i in range(device_count):
                 try:
                     info = self.audio.get_device_info_by_index(i)
-                    if info['maxInputChannels'] > 0:
-                        devices.append({
+                    max_input = info.get('maxInputChannels', 0)
+                    max_output = info.get('maxOutputChannels', 0)
+                    device_name = info.get('name', 'Unbekannt')
+                    host_api = info.get('hostApi', -1)
+                    
+                    # Hole Host-API-Info
+                    host_api_name = "Unbekannt"
+                    try:
+                        if host_api >= 0:
+                            api_info = self.audio.get_host_api_info_by_index(host_api)
+                            host_api_name = api_info.get('name', 'Unbekannt')
+                    except:
+                        pass
+                    
+                    print(f"Gerät {i}: {device_name} - Input: {max_input}, Output: {max_output}, Backend: {host_api_name}")
+                    
+                    # Versuche ALSA-Gerät zuzuordnen
+                    alsa_match = None
+                    for card_num, alsa_name in alsa_mapping.items():
+                        if alsa_name.lower() in device_name.lower() or device_name.lower() in alsa_name.lower():
+                            alsa_match = f"hw:{card_num},0"
+                            break
+                    
+                    if max_input > 0:
+                        device_info = {
                             "index": i,
-                            "name": info['name'],
-                            "channels": info['maxInputChannels'],
-                            "sample_rate": info.get('defaultSampleRate', 44100)
-                        })
+                            "name": device_name,
+                            "channels": max_input,
+                            "sample_rate": info.get('defaultSampleRate', 44100),
+                            "host_api": host_api,
+                            "host_api_name": host_api_name
+                        }
+                        if alsa_match:
+                            device_info["alsa_id"] = alsa_match
+                        devices.append(device_info)
                 except Exception as e:
                     print(f"Fehler beim Abrufen von Gerät {i}: {e}")
                     continue
+            
+            print(f"Gefundene Input-Geräte: {len(devices)}")
+            if devices:
+                for dev in devices:
+                    alsa_info = f" (ALSA: {dev.get('alsa_id', 'N/A')})" if dev.get('alsa_id') else ""
+                    print(f"  - Index {dev['index']}: {dev['name']} ({dev['channels']} Kanäle, {dev['host_api_name']}){alsa_info}")
+            else:
+                print("⚠️  Keine Input-Geräte gefunden!")
+                print("   Versuche Standard-Input-Gerät...")
+                try:
+                    default_info = self.audio.get_default_input_device_info()
+                    if default_info:
+                        print(f"   Standard-Input: {default_info.get('name')} (Index: {default_info.get('index')})")
+                except Exception as e:
+                    print(f"   Standard-Input nicht verfügbar: {e}")
+            
         except Exception as e:
             print(f"Fehler beim Abrufen der Audio-Geräte: {e}")
+            import traceback
+            traceback.print_exc()
+        
         return devices
     
     def find_available_input_device(self):
         """Finde ein verfügbares Input-Gerät"""
         devices = self.get_audio_devices()
         if not devices:
+            # Versuche Standard-Input-Gerät zu verwenden
+            try:
+                default_info = self.audio.get_default_input_device_info()
+                if default_info and default_info.get('maxInputChannels', 0) > 0:
+                    print(f"Verwende Standard-Input-Gerät: {default_info.get('name')}")
+                    return default_info.get('index')
+            except Exception as e:
+                print(f"Standard-Input-Gerät nicht verfügbar: {e}")
             return None
         
         # Wenn ein Gerät konfiguriert ist, prüfe ob es noch verfügbar ist
         if self.device_index is not None:
             for device in devices:
                 if device['index'] == self.device_index:
+                    print(f"Verwende konfiguriertes Gerät: {device['name']} (Index {device['index']})")
                     return self.device_index
         
         # Verwende das erste verfügbare Gerät
-        return devices[0]['index']
+        if devices:
+            print(f"Verwende erstes verfügbares Gerät: {devices[0]['name']} (Index {devices[0]['index']})")
+            return devices[0]['index']
+        
+        return None
     
     def _audio_callback(self, in_data, frame_count, time_info, status):
         """Callback für Audio-Stream"""
