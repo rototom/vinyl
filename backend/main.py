@@ -306,7 +306,7 @@ async def auto_tag_album(
         except Exception as e:
             print(f"Fehler beim Laden des Covers: {e}")
         
-        # Extrahiere Track-Informationen aus Media
+        # Extrahiere Track-Informationen aus Media (alle Media zusammen)
         media_tracks = []
         for medium in release_data.get("media", []):
             for track in medium.get("tracks", []):
@@ -314,20 +314,39 @@ async def auto_tag_album(
                 media_tracks.append({
                     "position": track.get("position", 0),
                     "title": recording.get("title", ""),
-                    "length": track.get("length", 0)
+                    "length": track.get("length", 0),
+                    "medium_position": medium.get("position", 1)
                 })
+        
+        # Sortiere Tracks nach Medium-Position und Track-Position
+        media_tracks.sort(key=lambda x: (x["medium_position"], x["position"]))
         
         # Tagge alle Tracks
         tagged_count = 0
-        for i, track_file in enumerate(track_files, 1):
-            if i <= len(media_tracks):
-                track_info = media_tracks[i - 1]
+        for i, track_file in enumerate(track_files):
+            if i < len(media_tracks):
+                track_info = media_tracks[i]
                 tagger.tag_file(
                     track_file,
                     title=track_info["title"],
                     artist=album_artist,
                     album=album_title,
-                    track_number=i,
+                    track_number=i + 1,
+                    year=album_date,
+                    cover_path=cover_path,
+                    album_artist=album_artist,
+                    disc_number=track_info.get("medium_position", 1),
+                    total_tracks=len(track_files)
+                )
+                tagged_count += 1
+            else:
+                # Falls mehr Tracks als Metadaten vorhanden sind, tagge mit Platzhalter
+                tagger.tag_file(
+                    track_file,
+                    title=f"Track {i + 1}",
+                    artist=album_artist,
+                    album=album_title,
+                    track_number=i + 1,
                     year=album_date,
                     cover_path=cover_path,
                     album_artist=album_artist,

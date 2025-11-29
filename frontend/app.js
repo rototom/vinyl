@@ -559,6 +559,119 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
     }
 });
 
+// Album-Suche
+document.getElementById('searchAlbumForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const artist = document.getElementById('searchArtist').value;
+    const album = document.getElementById('searchAlbum').value;
+    const resultsDiv = document.getElementById('albumSearchResults');
+    
+    resultsDiv.innerHTML = '<p class="text-white">Suche...</p>';
+    resultsDiv.classList.remove('hidden');
+    
+    try {
+        const formData = new FormData();
+        formData.append('artist', artist);
+        formData.append('album', album);
+        
+        const response = await fetch(`${API_BASE}/search-album`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.releases && data.releases.length > 0) {
+            displayAlbumSearchResults(data.releases, artist, album);
+        } else {
+            resultsDiv.innerHTML = '<p class="text-red-400">Keine Alben gefunden. Versuche andere Suchbegriffe.</p>';
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `<p class="text-red-400">Fehler bei der Suche: ${error.message}</p>`;
+    }
+});
+
+function displayAlbumSearchResults(releases, searchArtist, searchAlbum) {
+    const resultsDiv = document.getElementById('albumSearchResults');
+    resultsDiv.innerHTML = '';
+    
+    releases.forEach((release, index) => {
+        const totalTracks = release.track_count || 0;
+        const mediaInfo = release.media && release.media.length > 0 ? 
+            release.media.map(m => `Seite ${m.position}: ${m.track_count} Tracks`).join(', ') : 
+            `${totalTracks} Tracks gesamt`;
+        const coverImg = release.cover_url ? 
+            `<img src="${release.cover_url}" alt="Cover" class="w-32 h-32 object-cover rounded-lg">` : 
+            '<div class="w-32 h-32 bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">Kein Cover</div>';
+        
+        const div = document.createElement('div');
+        div.className = 'bg-gray-800 rounded-lg p-4 border border-gray-700 mb-3';
+        div.innerHTML = `
+            <div class="flex space-x-4">
+                <div class="flex-shrink-0">
+                    ${coverImg}
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-white font-bold text-lg">${release.title}</h3>
+                    <p class="text-gray-300">${release.artist}</p>
+                    <p class="text-gray-400 text-sm mt-2">
+                        ${release.date ? `Jahr: ${release.date} • ` : ''}
+                        ${totalTracks} Tracks gesamt<br>
+                        ${mediaInfo}
+                    </p>
+                    <button onclick="selectAlbum('${release.mbid}', ${JSON.stringify(release.title)}, ${totalTracks})" 
+                            class="mt-3 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">
+                        ✅ Dieses Album verwenden
+                    </button>
+                </div>
+            </div>
+        `;
+        resultsDiv.appendChild(div);
+    });
+}
+
+async function selectAlbum(mbid, albumTitle, trackCount) {
+    const recordingSelect = document.getElementById('recordingSelect');
+    const filename = recordingSelect.value;
+    
+    if (!filename) {
+        alert('Bitte wählen Sie zuerst eine Aufnahme aus');
+        return;
+    }
+    
+    const tracksPerSide = document.getElementById('tracksPerSide').value;
+    
+    if (!confirm(`Metadaten von "${albumTitle}" auf alle Tracks anwenden?`)) {
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('base_filename', filename);
+        formData.append('release_mbid', mbid);
+        if (tracksPerSide) {
+            formData.append('tracks_per_side', tracksPerSide);
+        }
+        
+        const response = await fetch(`${API_BASE}/auto-tag-album`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`✅ ${data.tagged_tracks} Tracks wurden erfolgreich getaggt!\nAlbum: ${data.album}\nInterpret: ${data.artist}`);
+            loadRecordings();
+        } else {
+            alert('Fehler: ' + data.error);
+        }
+    } catch (error) {
+        alert('Fehler beim Tagging: ' + error.message);
+    }
+}
+
 // Initialisierung
 initWaveform();
 connectWebSocket();
