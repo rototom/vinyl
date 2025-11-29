@@ -274,6 +274,7 @@ document.getElementById('splitBtn').addEventListener('click', async () => {
             displayTracks(data.tracks);
             updateTrackSelect(data.tracks);
             document.getElementById('tagSection').classList.remove('hidden');
+            document.getElementById('metadataSearchSection').classList.remove('hidden');
             splitBtn.textContent = `✅ ${data.tracks.length} Tracks erstellt`;
         } else {
             throw new Error('Keine Tracks erstellt');

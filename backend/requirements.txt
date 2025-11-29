@@ -17,6 +17,8 @@ pydub>=0.25.0
 
 # Metadaten
 mutagen>=1.47.0
+requests>=2.31.0
+Pillow>=10.0.0
 
 # Wissenschaftliche Bibliotheken
 numpy>=1.24.0

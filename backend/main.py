@@ -12,6 +12,7 @@ from audio_recorder import AudioRecorder
 from alsa_recorder import ALSARecorder
 from track_splitter import TrackSplitter
 from tagger import AudioTagger
+from metadata_search import MetadataSearcher
 from config import Config
 import asyncio
 
@@ -124,6 +125,7 @@ splitter.min_silence_duration = config.get("recording.min_silence_duration", 2.0
 splitter.min_track_duration = config.get("recording.min_track_duration", 10.0)
 
 tagger = AudioTagger()
+metadata_searcher = MetadataSearcher()
 
 @app.get("/")
 async def read_root():
@@ -240,6 +242,109 @@ async def split_tracks(filename: str = Form(...)):
         tracks = splitter.split_audio(filepath, RECORDINGS_DIR)
         return {"tracks": tracks, "status": "success"}
     except Exception as e:
+        return JSONResponse(
+            {"error": str(e)}, 
+            status_code=500
+        )
+
+@app.post("/api/search-album")
+async def search_album(artist: str = Form(...), album: str = Form(...)):
+    """Suche nach Album in MusicBrainz"""
+    try:
+        releases = metadata_searcher.search_album(artist, album)
+        return {"releases": releases, "status": "success"}
+    except Exception as e:
+        return JSONResponse(
+            {"error": str(e)}, 
+            status_code=500
+        )
+
+@app.post("/api/auto-tag-album")
+async def auto_tag_album(
+    base_filename: str = Form(...),
+    release_mbid: str = Form(...),
+    tracks_per_side: Optional[int] = Form(None)
+):
+    """Automatisches Tagging eines Albums basierend auf MusicBrainz-Daten"""
+    try:
+        # Finde alle Tracks dieses Albums
+        base_name = Path(base_filename).stem.replace('_track_', '').split('_track_')[0]
+        track_files = sorted(RECORDINGS_DIR.glob(f"{base_name}_track_*.flac"))
+        
+        if not track_files:
+            return JSONResponse(
+                {"error": "Keine Tracks für dieses Album gefunden"}, 
+                status_code=404
+            )
+        
+        # Hole Release-Details von MusicBrainz
+        release_url = f"{metadata_searcher.musicbrainz_base}/release/{release_mbid}"
+        params = {
+            "inc": "recordings+media+artist-credits",
+            "fmt": "json"
+        }
+        import requests
+        response = requests.get(release_url, params=params, headers=metadata_searcher.headers, timeout=10)
+        response.raise_for_status()
+        release_data = response.json()
+        
+        # Extrahiere Album-Informationen
+        album_title = release_data.get("title", "")
+        album_artist = ""
+        if release_data.get("artist-credit"):
+            album_artist = release_data.get("artist-credit", [{}])[0].get("name", "")
+        album_date = release_data.get("date", "")[:4] if release_data.get("date") else None
+        
+        # Hole Cover-Art
+        cover_path = None
+        try:
+            cover_url = f"{metadata_searcher.coverart_base}/release/{release_mbid}/front-500"
+            cover_response = requests.get(cover_url, headers=metadata_searcher.headers, timeout=10)
+            if cover_response.status_code == 200:
+                cover_path = RECORDINGS_DIR / f"{base_name}_cover.jpg"
+                cover_path.write_bytes(cover_response.content)
+        except Exception as e:
+            print(f"Fehler beim Laden des Covers: {e}")
+        
+        # Extrahiere Track-Informationen aus Media
+        media_tracks = []
+        for medium in release_data.get("media", []):
+            for track in medium.get("tracks", []):
+                recording = track.get("recording", {})
+                media_tracks.append({
+                    "position": track.get("position", 0),
+                    "title": recording.get("title", ""),
+                    "length": track.get("length", 0)
+                })
+        
+        # Tagge alle Tracks
+        tagged_count = 0
+        for i, track_file in enumerate(track_files, 1):
+            if i <= len(media_tracks):
+                track_info = media_tracks[i - 1]
+                tagger.tag_file(
+                    track_file,
+                    title=track_info["title"],
+                    artist=album_artist,
+                    album=album_title,
+                    track_number=i,
+                    year=album_date,
+                    cover_path=cover_path,
+                    album_artist=album_artist,
+                    total_tracks=len(track_files)
+                )
+                tagged_count += 1
+        
+        return {
+            "status": "success",
+            "tagged_tracks": tagged_count,
+            "album": album_title,
+            "artist": album_artist
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             {"error": str(e)}, 
             status_code=500
