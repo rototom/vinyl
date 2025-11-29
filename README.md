@@ -4,11 +4,17 @@ Professionelle Schallplatten-Digitalisierungs-Software mit Webinterface für Ras
 
 ## Features
 
-- 🎤 Hochwertige FLAC-Aufnahmen (44.1 kHz Stereo)
+- 🎤 Hochwertige FLAC-Aufnahmen (44.1 kHz Stereo, konfigurierbar)
 - ✂️ Automatisches Track-Splitting basierend auf Pausen-Erkennung
-- 🏷️ Metadaten-Tagging (Titel, Interpret, Album, etc.)
-- 📊 Live Audio-Level Visualisierung
-- 🎨 Modernes, responsives Webinterface
+- 🏷️ Automatisches Metadaten-Tagging via MusicBrainz API
+- 📊 Live Audio-Level Visualisierung mit Waveform
+- 🎨 Modernes, responsives Webinterface mit Tab-Navigation
+- 🔄 **Robuste Aufnahme**: Läuft weiter auch bei Browser-Reload oder Neustart
+- 🛑 **Auto-Stop**: Automatisches Stoppen nach konfigurierbarer Stille-Dauer
+- 📀 **Album-Verwaltung**: Übersichtliche Sammlung mit Cover-Art
+- ⬇️ **Download-Funktionen**: Einzelne Tracks oder komplette Alben als ZIP
+- 🎛️ **Flexible Einstellungen**: Audio-Gerät, Sample-Rate, Kanäle, Benennung
+- 🔌 **ALSA-Unterstützung**: Direkte ALSA-Integration als Fallback
 
 ## Installation
 
@@ -68,31 +74,40 @@ python main.py
 
 ## Verwendung
 
-1. Öffne `http://raspberrypi-ip:8045` im Browser
-2. Starte die Aufnahme
-3. Stoppe die Aufnahme wenn die Platte fertig ist
-4. Klicke auf "Tracks automatisch splitten"
-5. Bearbeite die Metadaten für jeden Track
-6. Speichere die getaggten FLAC-Dateien
+1. Öffne `http://raspberrypi-ip:8045` im Browser (oder `http://plattenspieler.local:8045` wenn Hostname konfiguriert)
+2. **Aufnahme starten**: Klicke auf "Aufnahme starten" - die Aufnahme läuft serverseitig weiter, auch wenn der Browser geschlossen wird
+3. **Aufnahme stoppen**: Klicke auf "Aufnahme stoppen" wenn die Platte fertig ist (oder nutze Auto-Stop nach Stille)
+4. **Tracks splitten**: Wähle die Aufnahme aus und klicke auf "Tracks automatisch splitten"
+5. **Metadaten hinzufügen**: Suche nach dem Album in MusicBrainz und wende die Metadaten automatisch an
+6. **Alben verwalten**: Wechsle zum Tab "Alben-Sammlung" für Übersicht und Downloads
+7. **Einstellungen anpassen**: Im Tab "Einstellungen" kannst du Audio-Gerät, Sample-Rate, Auto-Stop und mehr konfigurieren
 
 ## Projektstruktur
 
 ```
 vinyl/
-├── backend/          # FastAPI Backend
-│   ├── main.py       # Hauptserver
-│   ├── audio_recorder.py    # Audio-Aufnahme
-│   ├── track_splitter.py    # Track-Splitting
-│   ├── tagger.py     # Metadaten-Tagging
+├── backend/              # FastAPI Backend
+│   ├── main.py          # Hauptserver
+│   ├── audio_recorder.py    # PyAudio-basierte Audio-Aufnahme
+│   ├── alsa_recorder.py     # ALSA-basierte Audio-Aufnahme (Fallback)
+│   ├── track_splitter.py    # Track-Splitting basierend auf Stille-Erkennung
+│   ├── tagger.py         # Metadaten-Tagging (FLAC)
+│   ├── metadata_search.py # MusicBrainz API Integration
+│   ├── config.py         # Konfigurationsverwaltung
+│   ├── recording_state.py # Persistenter Aufnahme-Status
 │   └── requirements.txt
-├── frontend/         # Webinterface
-│   ├── index.html
-│   ├── app.js
-│   └── styles.css
-├── recordings/       # Aufgenommene Dateien
-├── venv/            # Virtuelle Umgebung (wird erstellt)
-├── setup.sh         # Setup-Script
-└── start.sh         # Start-Script
+├── frontend/             # Webinterface
+│   ├── index.html        # Haupt-HTML
+│   ├── app.js           # Frontend-Logik
+│   ├── styles.css       # Styles (falls vorhanden)
+│   └── favicon.svg      # Favicon
+├── recordings/           # Aufgenommene Dateien (FLAC)
+├── config/               # Konfigurationsdateien
+│   ├── settings.json     # Einstellungen (wird erstellt)
+│   └── recording_state.json  # Aufnahme-Status (wird erstellt)
+├── venv/                 # Virtuelle Umgebung (wird erstellt)
+├── setup.sh              # Setup-Script
+└── start.sh               # Start-Script
 ```
 
 ## Schnellstart
@@ -107,21 +122,75 @@ vinyl/
 
 ## API Endpunkte
 
-- `GET /` - Webinterface
-- `GET /api/status` - Status der Aufnahme
+### Aufnahme
+- `GET /api/status` - Status der Aufnahme (inkl. Geräte-Info)
 - `POST /api/start-recording` - Aufnahme starten
 - `POST /api/stop-recording` - Aufnahme stoppen
+
+### Dateien & Tracks
 - `GET /api/recordings` - Liste aller Aufnahmen
+- `GET /api/tracks/{base_filename}` - Liste aller Tracks einer Aufnahme
+- `GET /api/albums` - Liste aller Alben (gruppiert nach Metadaten)
+- `GET /api/audio/{filename}` - Audio-Datei für Playback
+- `GET /api/download/{filename}` - Download einzelner Datei
+- `GET /api/download-album/{base_filename}` - Download Album als ZIP
+- `GET /api/download-collection` - Download aller Alben als ZIP
+- `GET /api/cover/{filename}` - Album-Cover-Art
+
+### Verarbeitung
 - `POST /api/split-tracks` - Tracks automatisch splitten
-- `POST /api/tag-track` - Metadaten hinzufügen
-- `DELETE /api/delete/{filename}` - Aufnahme löschen
-- `WS /ws` - WebSocket für Audio-Level Updates
+- `POST /api/search-album` - Suche nach Album in MusicBrainz
+- `POST /api/auto-tag-album` - Automatisches Tagging mit MusicBrainz-Daten
+- `POST /api/tag-track` - Manuelles Metadaten-Tagging
+
+### Verwaltung
+- `DELETE /api/delete/{filename}` - Einzelne Datei löschen
+- `DELETE /api/delete-album/{base_filename}` - Komplettes Album löschen
+
+### Einstellungen
+- `GET /api/settings` - Alle Einstellungen abrufen
+- `POST /api/settings` - Einstellungen aktualisieren
+
+### WebSocket
+- `WS /ws` - WebSocket für Live Audio-Level Updates
 
 ## Technologie-Stack
 
-- **Backend**: FastAPI, PyAudio, librosa, mutagen
-- **Frontend**: Vanilla JavaScript, Tailwind CSS
-- **Audio**: FLAC Format, 44.1 kHz, Stereo
+### Backend
+- **Framework**: FastAPI (Python)
+- **Audio-Aufnahme**: PyAudio, ALSA (arecord)
+- **Audio-Verarbeitung**: librosa, pydub, soundfile
+- **Metadaten**: mutagen (FLAC-Tagging)
+- **API-Integration**: MusicBrainz API, Cover Art Archive
+- **Konfiguration**: JSON-basierte Einstellungen
+
+### Frontend
+- **Sprache**: Vanilla JavaScript (ES6+)
+- **Styling**: Tailwind CSS (CDN)
+- **Visualisierung**: HTML5 Canvas (Waveform)
+- **Kommunikation**: WebSocket, Fetch API
+
+### Audio-Format
+- **Format**: FLAC (Free Lossless Audio Codec)
+- **Sample-Rate**: Konfigurierbar (Standard: 44.1 kHz)
+- **Kanäle**: Mono oder Stereo (konfigurierbar)
+- **Qualität**: 24-bit PCM
+
+## Besondere Features
+
+### Robuste Aufnahme
+Die Aufnahme läuft serverseitig weiter, auch wenn:
+- Der Browser geschlossen wird
+- Die Seite neu geladen wird
+- Die Netzwerkverbindung abbricht
+
+Der Status wird persistent gespeichert und beim Neustart wiederhergestellt.
+
+### Auto-Stop
+Konfigurierbare automatische Beendigung der Aufnahme nach einer bestimmten Dauer ohne Audio-Signal (Stille-Erkennung).
+
+### MusicBrainz-Integration
+Automatische Suche und Anwendung von Metadaten aus der MusicBrainz-Datenbank, inklusive Cover-Art.
 
 ## Lizenz
 

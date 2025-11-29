@@ -20,6 +20,11 @@ class ALSARecorder:
         self.output_path = None
         self.current_level = 0.0
         self._level_thread = None
+        self.auto_stop_silence_seconds = 0.0  # 0.0 = deaktiviert
+        self.silence_threshold_db = -40.0
+        self._silence_duration = 0.0
+        self._silence_start_time = None
+        self._silence_stop_triggered = False
         
     def get_alsa_devices(self):
         """Liste verfügbarer ALSA-Geräte"""
@@ -116,9 +121,32 @@ class ALSARecorder:
                         # Berechne RMS-Level
                         rms = np.sqrt(np.mean(data**2))
                         self.current_level = float(rms)
+                        
+                        # Prüfe Auto-Stop bei Stille
+                        if self.auto_stop_silence_seconds > 0:
+                            amplitude_threshold = 10 ** (self.silence_threshold_db / 20.0) if self.silence_threshold_db is not None else 0.01
+                            if self.current_level <= amplitude_threshold:
+                                if self._silence_start_time is None:
+                                    self._silence_start_time = time.time()
+                                else:
+                                    silence_duration = time.time() - self._silence_start_time
+                                    if not self._silence_stop_triggered and silence_duration >= self.auto_stop_silence_seconds:
+                                        self._silence_stop_triggered = True
+                                        print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille")
+                                        threading.Thread(target=self._stop_due_to_silence, daemon=True).start()
+                            else:
+                                self._silence_start_time = None
+                                self._silence_stop_triggered = False
                 time.sleep(0.1)
             except Exception:
                 time.sleep(0.1)
+    
+    def _stop_due_to_silence(self):
+        """Stoppe Aufnahme aufgrund von Stille"""
+        try:
+            self.stop_recording()
+        except Exception as e:
+            print(f"Fehler beim Stoppen aufgrund von Stille: {e}")
     
     def start_recording(self, output_dir: Path, filename_template: str = None):
         """Starte Aufnahme mit arecord"""
@@ -146,6 +174,9 @@ class ALSARecorder:
         self._kill_existing_arecord_processes()
         
         self._is_recording = True
+        self._silence_duration = 0.0
+        self._silence_start_time = None
+        self._silence_stop_triggered = False
         
         # Generiere Dateinamen
         if filename_template:
@@ -218,6 +249,8 @@ class ALSARecorder:
             return None
         
         self._is_recording = False
+        self._silence_start_time = None
+        self._silence_stop_triggered = False
         
         # Stoppe arecord-Prozess
         if self.process:

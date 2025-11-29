@@ -159,6 +159,8 @@ if use_alsa or recorder is None:
             sample_rate=sample_rate,
             channels=channels
         )
+        recorder.auto_stop_silence_seconds = auto_stop_silence_duration
+        recorder.silence_threshold_db = config.get("recording.silence_threshold_db", -40)
         print(f"✓ ALSA-Recorder initialisiert mit Gerät: {alsa_device}")
     except Exception as e:
         print(f"Fehler: ALSA-Recorder konnte nicht initialisiert werden: {e}")
@@ -978,6 +980,10 @@ async def update_settings(
             if hasattr(recorder, "silence_threshold_db"):
                 recorder.silence_threshold_db = silence_threshold_db
             if hasattr(recorder, "auto_stop_silence_seconds"):
+                recorder.auto_stop_silence_seconds = auto_stop
+            # Für ALSA-Recorder auch silence_threshold_db setzen
+            if isinstance(recorder, ALSARecorder):
+                recorder.silence_threshold_db = silence_threshold_db
                 recorder.auto_stop_silence_seconds = auto_stop
         
         return {"status": "success", "settings": config.config}
