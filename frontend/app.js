@@ -379,6 +379,7 @@ function displayTracks(tracks) {
         const duration = formatTime(track.duration);
         const audioUrl = `${API_BASE.replace('/api', '')}/api/audio/${track.filename}`;
         const downloadUrl = `${API_BASE.replace('/api', '')}/api/download/${track.filename}`;
+        const trackTitle = `Track ${track.track_number}`;
         
         const div = document.createElement('div');
         div.className = 'glass-effect rounded-xl p-4 mb-3 border border-white/10';
@@ -395,7 +396,7 @@ function displayTracks(tracks) {
                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap transition-all">
                     ⬇ Download
                 </a>
-                <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(`Track ${track.track_number}`)})" 
+                <button onclick="deleteTrack('${track.filename}', ${JSON.stringify(trackTitle)})" 
                         class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all">
                     🗑️ Löschen
                 </button>
@@ -445,7 +446,7 @@ function displayAlbums() {
                 <div class="flex-1">
                     <h3 class="text-2xl font-bold text-white mb-2">${album.album}</h3>
                     <p class="text-gray-300 text-lg mb-4">${album.artist}</p>
-                    ${album.year ? `<p class="text-gray-400 mb-4">Jahr: ${album.year}</p>` : ''}
+                    ${album.year ? '<p class="text-gray-400 mb-4">Jahr: ' + album.year + '</p>' : ''}
                     <p class="text-gray-400 mb-4">${album.total_tracks} Tracks</p>
                     <div class="flex gap-3">
                         <a href="${API_BASE.replace('/api', '')}/api/download-album/${album.tracks[0].filename}" 
@@ -573,7 +574,7 @@ function displayAlbumSearchResults(releases, searchArtist, searchAlbum) {
                     <h3 class="text-white font-bold text-lg">${release.title}</h3>
                     <p class="text-gray-300">${release.artist}</p>
                     <p class="text-gray-400 text-sm mt-2">
-                        ${release.date ? `Jahr: ${release.date} • ` : ''}
+                        ${release.date ? 'Jahr: ' + release.date + ' • ' : ''}
                         ${discInfo}${totalTracks} Tracks gesamt (${mediaCount} Seiten)<br>
                         <span class="text-gray-500 text-xs mt-1 block">${mediaInfo}</span>
                     </p>
