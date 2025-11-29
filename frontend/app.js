@@ -604,13 +604,36 @@ function displayAlbumSearchResults(releases, searchArtist, searchAlbum) {
     resultsDiv.innerHTML = '';
     
     releases.forEach((release, index) => {
-        const totalTracks = release.track_count || 0;
-        const mediaInfo = release.media && release.media.length > 0 ? 
-            release.media.map(m => `Seite ${m.position}: ${m.track_count} Tracks`).join(', ') : 
-            `${totalTracks} Tracks gesamt`;
+        const totalTracks = release.total_tracks_all_media || release.track_count || 0;
+        const mediaCount = release.media_count || release.media?.length || 0;
+        const discCount = release.disc_count || Math.ceil(mediaCount / 2) || 1;
+        
+        // Erstelle detaillierte Media-Info
+        let mediaInfo = '';
+        if (release.media && release.media.length > 0) {
+            // Gruppiere nach Discs (bei Vinyl: 2 Seiten = 1 Disc)
+            const mediaGroups = [];
+            for (let i = 0; i < release.media.length; i += 2) {
+                const discNum = Math.floor(i / 2) + 1;
+                const sideA = release.media[i];
+                const sideB = release.media[i + 1];
+                
+                if (sideB) {
+                    mediaGroups.push(`Platte ${discNum}: Seite ${sideA.position} (${sideA.track_count} Tracks) + Seite ${sideB.position} (${sideB.track_count} Tracks)`);
+                } else {
+                    mediaGroups.push(`Platte ${discNum}: Seite ${sideA.position} (${sideA.track_count} Tracks)`);
+                }
+            }
+            mediaInfo = mediaGroups.join('<br>');
+        } else {
+            mediaInfo = `${totalTracks} Tracks gesamt`;
+        }
+        
         const coverImg = release.cover_url ? 
             `<img src="${release.cover_url}" alt="Cover" class="w-32 h-32 object-cover rounded-lg">` : 
             '<div class="w-32 h-32 bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">Kein Cover</div>';
+        
+        const discInfo = discCount > 1 ? `<span class="text-yellow-400 font-semibold">${discCount} Platten</span> • ` : '';
         
         const div = document.createElement('div');
         div.className = 'bg-gray-800 rounded-lg p-4 border border-gray-700 mb-3';
@@ -624,8 +647,8 @@ function displayAlbumSearchResults(releases, searchArtist, searchAlbum) {
                     <p class="text-gray-300">${release.artist}</p>
                     <p class="text-gray-400 text-sm mt-2">
                         ${release.date ? `Jahr: ${release.date} • ` : ''}
-                        ${totalTracks} Tracks gesamt<br>
-                        ${mediaInfo}
+                        ${discInfo}${totalTracks} Tracks gesamt (${mediaCount} Seiten)<br>
+                        <span class="text-gray-500 text-xs mt-1 block">${mediaInfo}</span>
                     </p>
                     <button onclick="selectAlbum('${release.mbid}', ${JSON.stringify(release.title)}, ${totalTracks})" 
                             class="mt-3 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">

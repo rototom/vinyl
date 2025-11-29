@@ -56,24 +56,41 @@ class MetadataSearcher:
                     detail_response.raise_for_status()
                     detail_data = detail_response.json()
                     
-                    # Extrahiere Media-Informationen (LP-Seiten)
+                    # Extrahiere Media-Informationen (LP-Seiten/Discs)
+                    total_tracks_all_media = 0
                     for medium in detail_data.get("media", []):
                         medium_info = {
                             "position": medium.get("position", 1),
                             "format": medium.get("format", ""),
                             "track_count": medium.get("track-count", 0),
+                            "title": medium.get("title", ""),  # z.B. "Side A", "Side B"
                             "tracks": []
                         }
                         
                         for track in medium.get("tracks", []):
+                            recording = track.get("recording", {})
                             track_info = {
                                 "position": track.get("position", 0),
-                                "title": track.get("title", ""),
+                                "title": recording.get("title", "") if recording else track.get("title", ""),
                                 "length": track.get("length", 0)  # in Millisekunden
                             }
                             medium_info["tracks"].append(track_info)
                         
+                        total_tracks_all_media += medium_info["track_count"]
                         release_info["media"].append(medium_info)
+                    
+                    # Berechne Gesamt-Informationen
+                    release_info["total_tracks_all_media"] = total_tracks_all_media
+                    release_info["media_count"] = len(release_info["media"])
+                    
+                    # Gruppiere Media nach Disc (bei Multi-Disc-Alben)
+                    # Bei Vinyl: Jede 2 Media = 1 Disc (Side A + Side B)
+                    vinyl_media = [m for m in release_info["media"] if m.get("format", "").lower() in ["vinyl", "12\"", "lp", ""]]
+                    if vinyl_media:
+                        # Bei Vinyl: 2 Seiten = 1 Disc
+                        release_info["disc_count"] = (len(vinyl_media) + 1) // 2
+                    else:
+                        release_info["disc_count"] = len(release_info["media"])
                     
                     # Hole Cover-Art
                     try:

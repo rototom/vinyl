@@ -307,19 +307,33 @@ async def auto_tag_album(
             print(f"Fehler beim Laden des Covers: {e}")
         
         # Extrahiere Track-Informationen aus Media (alle Media zusammen)
+        # Bei Multi-Disc: Alle Tracks über alle Discs hinweg
         media_tracks = []
         for medium in release_data.get("media", []):
+            medium_position = medium.get("position", 1)
+            # Bei Vinyl: Medium 1-2 = Disc 1, Medium 3-4 = Disc 2, etc.
+            # Bei CD: Jedes Medium = 1 Disc
+            is_vinyl = medium.get("format", "").lower() in ["vinyl", "12\"", "lp", ""]
+            if is_vinyl:
+                disc_number = (medium_position + 1) // 2
+            else:
+                disc_number = medium_position
+            
             for track in medium.get("tracks", []):
                 recording = track.get("recording", {})
                 media_tracks.append({
                     "position": track.get("position", 0),
-                    "title": recording.get("title", ""),
+                    "title": recording.get("title", "") if recording else "",
                     "length": track.get("length", 0),
-                    "medium_position": medium.get("position", 1)
+                    "medium_position": medium_position,
+                    "disc_number": disc_number
                 })
         
-        # Sortiere Tracks nach Medium-Position und Track-Position
-        media_tracks.sort(key=lambda x: (x["medium_position"], x["position"]))
+        # Sortiere Tracks nach Disc-Nummer, Medium-Position und Track-Position
+        media_tracks.sort(key=lambda x: (x["disc_number"], x["medium_position"], x["position"]))
+        
+        print(f"Gefundene Tracks in MusicBrainz: {len(media_tracks)}")
+        print(f"Tracks in Dateien: {len(track_files)}")
         
         # Tagge alle Tracks
         tagged_count = 0
@@ -335,7 +349,7 @@ async def auto_tag_album(
                     year=album_date,
                     cover_path=cover_path,
                     album_artist=album_artist,
-                    disc_number=track_info.get("medium_position", 1),
+                    disc_number=track_info.get("disc_number", 1),
                     total_tracks=len(track_files)
                 )
                 tagged_count += 1
