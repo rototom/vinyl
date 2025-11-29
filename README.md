@@ -21,6 +21,19 @@ Professionelle Schallplatten-Digitalisierungs-Software mit Webinterface für Ras
 
 ### Setup
 
+**Automatisch mit Setup-Script (empfohlen):**
+
+```bash
+# Repository klonen
+git clone https://github.com/rototom/vinyl.git
+cd vinyl
+
+# Setup-Script ausführen (installiert automatisch System-Abhängigkeiten)
+./setup.sh
+```
+
+**Manuell:**
+
 ```bash
 # Repository klonen
 git clone https://github.com/rototom/vinyl.git
@@ -28,18 +41,22 @@ cd vinyl
 
 # System-Abhängigkeiten installieren (Raspberry Pi)
 sudo apt-get update
-sudo apt-get install python3-venv python3-pip portaudio19-dev python3-pyaudio libsndfile1 libsndfile1-dev libsamplerate0-dev
+sudo apt-get install -y python3-venv python3-pip portaudio19-dev libsndfile1-dev libsamplerate0-dev
 
 # Virtuelle Umgebung erstellen und aktivieren
 python3 -m venv venv
 source venv/bin/activate
+
+# Build-Tools installieren
+pip install --upgrade pip setuptools wheel
 
 # Python-Abhängigkeiten installieren
 cd backend
 pip install -r requirements.txt
 
 # Server starten
-python main.py
+cd ..
+./start.sh
 ```
 
 **Hinweis:** Bei jedem Start muss die virtuelle Umgebung aktiviert werden:
