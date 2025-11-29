@@ -53,16 +53,25 @@ except Exception as e:
 # Explizite Routen für statische Dateien
 @app.get("/app.js")
 async def serve_app_js():
+    """Serviere JavaScript-Datei"""
     js_path = FRONTEND_DIR / "app.js"
-    if js_path.exists():
-        from fastapi.responses import Response
+    if not js_path.exists():
+        raise FileNotFoundError(f"app.js nicht gefunden: {js_path}")
+    
+    from fastapi.responses import Response
+    try:
         content = js_path.read_text(encoding='utf-8')
         return Response(
             content=content,
-            media_type="application/javascript",
-            headers={"Cache-Control": "no-cache"}
+            media_type="application/javascript; charset=utf-8",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Content-Type": "application/javascript; charset=utf-8"
+            }
         )
-    raise FileNotFoundError("app.js nicht gefunden")
+    except Exception as e:
+        print(f"Fehler beim Lesen von app.js: {e}")
+        raise
 
 @app.get("/styles.css")
 async def serve_styles_css():
