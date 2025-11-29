@@ -10,43 +10,73 @@ class TrackSplitter:
         self.min_track_duration = 10.0  # Sekunden
         
     def split_audio(self, audio_path: Path, output_dir: Path):
-        """Erkenne Pausen und splitte Audio in Tracks"""
+        """Erkenne Pausen und splitte Audio in Tracks (speichereffizient)"""
         print(f"Lade Audio: {audio_path}")
         
         # Prüfe Dateigröße
         file_size_mb = audio_path.stat().st_size / (1024 * 1024)
         print(f"Dateigröße: {file_size_mb:.2f} MB")
         
-        if file_size_mb > 500:
-            print("Warnung: Sehr große Datei, Verarbeitung kann länger dauern...")
+        if file_size_mb > 200:
+            print("Warnung: Große Datei - verwende speichereffiziente Verarbeitung...")
         
         try:
-            # Lade Audio mit Progress-Callback wäre ideal, aber librosa unterstützt das nicht direkt
-            # Verwende sr=None um native Sample-Rate zu behalten
-            print("Lade Audio-Datei...")
-            y, sr = librosa.load(str(audio_path), sr=None, mono=False)
-            print(f"Audio geladen: {y.shape} Shape, {sr} Hz")
+            # Lade Metadaten der Datei
+            with sf.SoundFile(str(audio_path)) as f:
+                sr = f.samplerate
+                channels = f.channels
+                frames = f.frames
+                duration = frames / sr
+                is_stereo = channels == 2
             
-            # Behalte Stereo-Information für Ausgabe
-            is_stereo = len(y.shape) > 1 and y.shape[0] == 2
+            print(f"Audio-Info: {channels} Kanäle, {sr} Hz, {duration:.1f}s ({frames} Samples)")
             
-            # Für Silence-Erkennung: Konvertiere zu Mono (nur für Analyse)
-            if is_stereo:
-                print("Konvertiere Stereo zu Mono für Silence-Erkennung...")
-                y_mono = librosa.to_mono(y)
-            else:
-                y_mono = y
+            # Speichereffiziente RMS-Berechnung in Chunks
+            print("Berechne RMS Energy (speichereffizient)...")
+            frame_length = 2048
+            hop_length = 512
+            chunk_size = 44100 * 10  # 10 Sekunden pro Chunk
+            
+            rms_frames = []
+            total_frames = 0
+            
+            with sf.SoundFile(str(audio_path)) as f:
+                while True:
+                    chunk = f.read(chunk_size, dtype='float32')
+                    if len(chunk) == 0:
+                        break
+                    
+                    # Konvertiere zu Mono für RMS-Berechnung
+                    # soundfile gibt Daten im Format (samples, channels) zurück
+                    if is_stereo:
+                        # Transponiere zu (channels, samples) für librosa.to_mono
+                        chunk_mono = librosa.to_mono(chunk.T)
+                    else:
+                        chunk_mono = chunk.flatten() if len(chunk.shape) > 1 else chunk
+                    
+                    # Berechne RMS für diesen Chunk
+                    chunk_rms = librosa.feature.rms(
+                        y=chunk_mono, 
+                        frame_length=frame_length, 
+                        hop_length=hop_length
+                    )[0]
+                    
+                    rms_frames.append(chunk_rms)
+                    total_frames += len(chunk_mono)
+                    
+                    if len(rms_frames) % 10 == 0:
+                        progress = (f.tell() / frames) * 100
+                        print(f"  Verarbeitet: {progress:.1f}%")
+            
+            # Kombiniere alle RMS-Frames
+            rms = np.concatenate(rms_frames)
+            print(f"RMS-Berechnung abgeschlossen: {len(rms)} Frames")
+            
         except Exception as e:
             print(f"Fehler beim Laden der Audio-Datei: {e}")
             import traceback
             traceback.print_exc()
             raise Exception(f"Fehler beim Laden der Audio-Datei: {e}")
-        
-        # Berechne RMS Energy (mit Mono für bessere Silence-Erkennung)
-        print("Berechne RMS Energy...")
-        frame_length = 2048
-        hop_length = 512
-        rms = librosa.feature.rms(y=y_mono, frame_length=frame_length, hop_length=hop_length)[0]
         
         # Konvertiere zu dB
         print("Konvertiere zu dB...")
@@ -69,8 +99,9 @@ class TrackSplitter:
         
         if len(silence_frames) == 0:
             print("Keine Silence-Bereiche gefunden - erstelle einen einzigen Track")
-            # Bei Stereo: y.shape[1] ist die Anzahl der Samples
-            total_duration = y.shape[1] / sr if is_stereo else len(y) / sr
+            # Verwende duration aus SoundFile
+            with sf.SoundFile(str(audio_path)) as f:
+                total_duration = f.frames / f.samplerate
             split_points.append(total_duration)
         else:
             last_silence_start = silence_frames[0]
@@ -92,13 +123,14 @@ class TrackSplitter:
                     
                     last_silence_start = silence_time
             
-            # Bei Stereo: y.shape[1] ist die Anzahl der Samples
-            total_duration = y.shape[1] / sr if is_stereo else len(y) / sr
+            # Verwende duration aus SoundFile
+            with sf.SoundFile(str(audio_path)) as f:
+                total_duration = f.frames / f.samplerate
             split_points.append(total_duration)  # Ende
         
         print(f"Gefundene Split-Punkte: {len(split_points)} -> {len(split_points)-1} Tracks")
         
-        # Erstelle Track-Dateien
+        # Erstelle Track-Dateien (speichereffizient)
         print("Erstelle Track-Dateien...")
         tracks = []
         base_name = audio_path.stem
@@ -107,30 +139,37 @@ class TrackSplitter:
             start_time = split_points[i]
             end_time = split_points[i + 1]
             
-            start_sample = int(start_time * sr)
-            end_sample = int(end_time * sr)
+            start_frame = int(start_time * sr)
+            end_frame = int(end_time * sr)
             
             print(f"  Track {i+1}: {start_time:.2f}s - {end_time:.2f}s ({end_time-start_time:.2f}s)")
-            
-            # Verwende Stereo-Daten falls vorhanden, sonst Mono
-            if is_stereo:
-                track_audio = y[:, start_sample:end_sample].T  # Transponiere für soundfile Format (samples x channels)
-            else:
-                track_audio = y[start_sample:end_sample]
             
             track_filename = f"{base_name}_track_{i+1:02d}.flac"
             track_path = output_dir / track_filename
             
             try:
-                # Speichere mit korrekter Kanalanzahl
-                if is_stereo:
-                    sf.write(str(track_path), track_audio, sr, format='FLAC', subtype='PCM_24')
-                    print(f"    Gespeichert: {track_filename} (Stereo)")
-                else:
-                    sf.write(str(track_path), track_audio, sr, format='FLAC', subtype='PCM_24')
-                    print(f"    Gespeichert: {track_filename} (Mono)")
+                # Lese nur den benötigten Bereich aus der Datei
+                with sf.SoundFile(str(audio_path)) as infile:
+                    # Setze Position
+                    infile.seek(start_frame)
+                    # Lese nur die benötigten Frames
+                    track_audio = infile.read(end_frame - start_frame, dtype='float32')
+                    
+                    # Speichere Track
+                    sf.write(
+                        str(track_path), 
+                        track_audio, 
+                        sr, 
+                        format='FLAC', 
+                        subtype='PCM_24'
+                    )
+                    
+                    channel_info = "Stereo" if is_stereo else "Mono"
+                    print(f"    Gespeichert: {track_filename} ({channel_info})")
             except Exception as e:
                 print(f"    Fehler beim Speichern von {track_filename}: {e}")
+                import traceback
+                traceback.print_exc()
                 raise
             
             tracks.append({
