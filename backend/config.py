@@ -25,7 +25,7 @@ class Config:
                 "silence_threshold_db": -40,
                 "min_silence_duration": 2.0,
                 "min_track_duration": 10.0,
-                "auto_stop_silence_duration": 10.0
+                "auto_stop_silence_duration": 0.0  # 0.0 = deaktiviert (Standard)
             }
         }
         self.config = self.load()

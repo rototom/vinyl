@@ -39,7 +39,7 @@ class AudioRecorder:
         self.filename = None
         self.output_path = None
         self.silence_threshold_db = -40.0
-        self.auto_stop_silence_seconds = 10.0
+        self.auto_stop_silence_seconds = 0.0  # 0.0 = deaktiviert (Standard)
         self._silence_duration = 0.0
         self._silence_stop_triggered = False
     
@@ -198,19 +198,27 @@ class AudioRecorder:
     def _check_auto_stop(self, level, chunk_duration):
         if not self.auto_stop_silence_seconds or self.auto_stop_silence_seconds <= 0:
             return
-        amplitude_threshold = 10 ** (self.silence_threshold_db / 20.0) if self.silence_threshold_db is not None else 0.01
+        
+        # Verwende eine niedrigere Schwelle für Auto-Stop als für Track-Splitting
+        # -50 dB ist sehr leise und deutet auf echte Stille hin
+        auto_stop_threshold_db = -50.0  # Niedrigere Schwelle für Auto-Stop
+        amplitude_threshold = 10 ** (auto_stop_threshold_db / 20.0)
+        
         if level <= amplitude_threshold:
             self._silence_duration += chunk_duration
             if not self._silence_stop_triggered and self._silence_duration >= self.auto_stop_silence_seconds:
                 self._silence_stop_triggered = True
+                print(f"⚠️  Auto-Stop: Stille erkannt (Level: {level:.6f}, Schwelle: {amplitude_threshold:.6f}, Dauer: {self._silence_duration:.1f}s)")
                 threading.Thread(target=self._stop_due_to_silence, daemon=True).start()
         else:
-            self._silence_duration = 0.0
-            self._silence_stop_triggered = False
+            # Reset nur wenn Level deutlich über Schwelle ist
+            if level > amplitude_threshold * 2:  # Mindestens doppelt so laut wie Schwelle
+                self._silence_duration = 0.0
+                self._silence_stop_triggered = False
 
     def _stop_due_to_silence(self):
         try:
-            print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille")
+            print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille (Level unter -50 dB)")
             self.stop_recording()
         except Exception as e:
             print(f"Fehler beim Stoppen aufgrund von Stille: {e}")

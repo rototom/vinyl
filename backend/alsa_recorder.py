@@ -124,7 +124,11 @@ class ALSARecorder:
                         
                         # Prüfe Auto-Stop bei Stille
                         if self.auto_stop_silence_seconds > 0:
-                            amplitude_threshold = 10 ** (self.silence_threshold_db / 20.0) if self.silence_threshold_db is not None else 0.01
+                            # Verwende eine niedrigere Schwelle für Auto-Stop als für Track-Splitting
+                            # -50 dB ist sehr leise und deutet auf echte Stille hin
+                            auto_stop_threshold_db = -50.0  # Niedrigere Schwelle für Auto-Stop
+                            amplitude_threshold = 10 ** (auto_stop_threshold_db / 20.0)
+                            
                             if self.current_level <= amplitude_threshold:
                                 if self._silence_start_time is None:
                                     self._silence_start_time = time.time()
@@ -132,11 +136,13 @@ class ALSARecorder:
                                     silence_duration = time.time() - self._silence_start_time
                                     if not self._silence_stop_triggered and silence_duration >= self.auto_stop_silence_seconds:
                                         self._silence_stop_triggered = True
-                                        print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille")
+                                        print(f"⚠️  Auto-Stop: Stille erkannt (Level: {self.current_level:.6f}, Schwelle: {amplitude_threshold:.6f}, Dauer: {silence_duration:.1f}s)")
                                         threading.Thread(target=self._stop_due_to_silence, daemon=True).start()
                             else:
-                                self._silence_start_time = None
-                                self._silence_stop_triggered = False
+                                # Reset nur wenn Level deutlich über Schwelle ist
+                                if self.current_level > amplitude_threshold * 2:  # Mindestens doppelt so laut wie Schwelle
+                                    self._silence_start_time = None
+                                    self._silence_stop_triggered = False
                 time.sleep(0.1)
             except Exception:
                 time.sleep(0.1)
@@ -144,6 +150,7 @@ class ALSARecorder:
     def _stop_due_to_silence(self):
         """Stoppe Aufnahme aufgrund von Stille"""
         try:
+            print(f"📢 Automatisches Stoppen nach {self.auto_stop_silence_seconds}s Stille (Level unter -50 dB)")
             self.stop_recording()
         except Exception as e:
             print(f"Fehler beim Stoppen aufgrund von Stille: {e}")

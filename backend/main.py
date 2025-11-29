@@ -40,7 +40,7 @@ CONFIG_DIR.mkdir(exist_ok=True)
 
 # Konfiguration laden
 config = Config(CONFIG_DIR / "settings.json")
-auto_stop_silence_duration = config.get("recording.auto_stop_silence_duration", 10.0)
+auto_stop_silence_duration = config.get("recording.auto_stop_silence_duration", 0.0)  # 0.0 = deaktiviert
 
 # Aufnahme-Status laden
 recording_state = RecordingState(CONFIG_DIR / "recording_state.json")
